@@ -487,9 +487,9 @@ int main( int argc, char * argv[])
   costFunction->SetNumberOfValues(numValues);
 
   initialValue[0] = 5000; // use b0
-  initialValue[1] = 0.5; // 0.7
-  initialValue[2] = 0.001; // go lower 4 times
-  initialValue[3] = 0.002; // 
+  initialValue[1] = 0.7; 
+  initialValue[2] = 0.00025; 
+  initialValue[3] = 0.002; 
 
   int cnt = 0;
   vvIt.GoToBegin();mvIt.GoToBegin();rsqrIt.GoToBegin();
@@ -506,6 +506,8 @@ int main( int argc, char * argv[])
         //cnt++;
         costFunction->SetX(bValuesPtr, numValues);
         costFunction->SetY(const_cast<float*>(vectorVoxel.GetDataPointer()),numValues);
+
+        initialValue[0] = vectorVoxel[0];
         MultiExpDecayCostFunction::MeasureType temp = costFunction->GetValue(initialValue);
 
         optimizer->UseCostFunctionGradientOff();
