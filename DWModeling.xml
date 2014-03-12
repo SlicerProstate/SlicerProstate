@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<executable>
+  <category>Quantification</category>
+  <title>DWModeling</title>
+  <description><![CDATA[Modeling of quantitative parameters from Diffusion Weighted Imaging]]></description>
+  <version>0.0.1</version>
+  <documentation-url></documentation-url>
+  <license>Slicer</license>
+  <contributor>Andriy Fedorov (SPL/BWH)</contributor>
+  <acknowledgements>This work was partially funded by NIH grants ...</acknowledgements>
+  <parameters>
+    <label>IO</label>
+    <description>Input/output parameters</description>
+
+    <image type="label">
+      <name>maskName</name>
+      <longflag>mask</longflag>
+      <label>Input mask</label>
+      <channel>input</channel>
+      <description>Input mask</description>
+    </image>
+
+    <integer-vector>
+      <name>framesMask</name>
+      <label>Frames mask</label>
+      <longflag>framesMask</longflag>
+      <description>List of integers. Length of the list should be the same as the number of B-values. Non-zero value of the item in the list means the particular value should be included in the fitting procedure. </description>
+    </integer-vector>
+
+    <image type="dynamic-contrast-enhanced">
+      <name>imageName</name>
+      <label>Input 4-d volume Volume</label>
+      <channel>input</channel>
+      <description>Input volume</description>
+      <index>0</index>
+    </image>
+
+    <image>
+      <name>diffusionMapFileName</name>
+      <longflag>diffusion</longflag>
+      <label>Slow diffusion map</label>
+      <channel>output</channel>
+      <description>Coefficient map for the slow diffusion component</description>
+    </image>
+
+    <image>
+      <name>perfusionMapFileName</name>
+      <longflag>perfusion</longflag>
+      <label>Fast diffusion map</label>
+      <channel>output</channel>
+      <description>Coefficient map for the fast diffusion component</description>
+    </image>
+
+    <image>
+      <name>perfusionFractionMapFileName</name>
+      <longflag>perfusionFraction</longflag>
+      <label>Fast diffusion fraction map</label>
+      <channel>output</channel>
+      <description>Fast diffusion fraction coefficient map</description>
+    </image>
+
+    <image type="dynamic-contrast-enhanced">
+      <name>fittedVolumeFileName</name>
+      <longflag>fittedVolume</longflag>
+      <label>Fitted volume</label>
+      <description>Output volume containing the values of the fitted function</description>
+      <channel>output</channel>
+    </image>
+
+    <image>
+      <name>rsqrVolumeFileName</name>
+      <longflag>rsqrVolume</longflag>
+      <label>Quality of fit volume</label>
+      <description>Output volume containing the R^2 measure of the quality of fit</description>
+      <channel>output</channel>
+    </image>
+
+    </parameters>
+</executable>
