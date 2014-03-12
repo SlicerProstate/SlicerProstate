@@ -429,6 +429,13 @@ int main( int argc, char * argv[])
   perfusionFractionMap->CopyInformation(maskVolume);
   perfusionFractionMap->FillBuffer(0);
 
+  MapVolumeType::Pointer rsqrMap = MapVolumeType::New();
+  rsqrMap->SetRegions(maskVolume->GetLargestPossibleRegion());
+  rsqrMap->Allocate();
+  rsqrMap->FillBuffer(0);
+  rsqrMap->CopyInformation(maskVolume);
+  rsqrMap->FillBuffer(0);
+
   DuplicatorType::Pointer dup = DuplicatorType::New();
   dup->SetInputImage(inputVectorVolume);
   dup->Update();
@@ -443,6 +450,7 @@ int main( int argc, char * argv[])
   MapVolumeIteratorType diffIt(diffusionMap, diffusionMap->GetLargestPossibleRegion());
   MapVolumeIteratorType perfIt(perfusionMap, perfusionMap->GetLargestPossibleRegion());
   MapVolumeIteratorType perfFracIt(perfusionFractionMap, perfusionFractionMap->GetLargestPossibleRegion());
+  MapVolumeIteratorType rsqrIt(rsqrMap, rsqrMap->GetLargestPossibleRegion());
   VectorVolumeIteratorType fittedIt(fittedVolume, fittedVolume->GetLargestPossibleRegion());
 
   itk::LevenbergMarquardtOptimizer::Pointer optimizer = itk::LevenbergMarquardtOptimizer::New();
@@ -457,9 +465,9 @@ int main( int argc, char * argv[])
   initialValue[3] = 0.002; // 
 
   int cnt = 0;
-  vvIt.GoToBegin();mvIt.GoToBegin();
+  vvIt.GoToBegin();mvIt.GoToBegin();rsqrIt.GoToBegin();
   perfIt.GoToBegin();diffIt.GoToBegin();perfFracIt.GoToBegin();fittedIt.GoToBegin();
-  for(;!diffIt.IsAtEnd();++vvIt,++mvIt,++perfIt,++diffIt,++perfFracIt,++fittedIt){
+  for(;!diffIt.IsAtEnd();++vvIt,++mvIt,++perfIt,++diffIt,++perfFracIt,++fittedIt,++rsqrIt){
       VectorVolumeType::PixelType vectorVoxel = vvIt.Get();
       VectorVolumeType::PixelType fittedVoxel(vectorVoxel.GetSize());
       for(int i=0;i<fittedVoxel.GetSize();i++)
@@ -501,6 +509,24 @@ int main( int argc, char * argv[])
         diffIt.Set(finalPosition[2]*1e+6);
         perfIt.Set(finalPosition[3]*1e+6);
 
+        // initialize the rsqr map
+        // see PkModeling/CLI/itkConcenttationToQuantitativeImageFilter.hxx:452
+        {
+          MultiExpDecayCostFunction::MeasureType residuals = costFunction->GetValue(optimizer->GetCurrentPosition());
+          double rms = optimizer->GetOptimizer()->get_end_error();
+          double SSerr = rms*rms*vectorVoxel.GetSize();
+          double sumSquared = 0.0;
+          double sum = 0.0;
+          for (unsigned int i=0; i < vectorVoxel.GetSize(); ++i){
+            sum += vectorVoxel[i];
+            sumSquared += (vectorVoxel[i]*vectorVoxel[i]);
+          }
+          double SStot = sumSquared - sum*sum/(double)vectorVoxel.GetSize();
+     
+          double rSquared = 1.0 - (SSerr / SStot);
+          rsqrIt.Set(rSquared);
+        }
+
         fittedIt.Set(fittedVoxel);
       }
   }
@@ -524,6 +550,13 @@ int main( int argc, char * argv[])
     MapWriterType::Pointer writer = MapWriterType::New();
     writer->SetInput(perfusionFractionMap);
     writer->SetFileName(perfusionFractionMapFileName.c_str());
+    writer->SetUseCompression(1);
+    writer->Update();
+  }
+  if(rsqrVolumeFileName.size()){
+    MapWriterType::Pointer writer = MapWriterType::New();
+    writer->SetInput(rsqrMap);
+    writer->SetFileName(rsqrVolumeFileName.c_str());
     writer->SetUseCompression(1);
     writer->Update();
   }
