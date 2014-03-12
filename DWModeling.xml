@@ -75,5 +75,14 @@
       <channel>output</channel>
     </image>
 
+    <boolean>
+      <name>filterFitOutliers</name>
+      <longflag>filterFitOutliers</longflag>
+      <label>Try to filter outliers</label>
+      <description>If selected, outlier points based on the fit residual error will be discarded, and a new fit will be done</description>
+      <channel>input</channel>
+      <default>0</default>
+    </boolean>
+
     </parameters>
 </executable>

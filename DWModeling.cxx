@@ -247,7 +247,7 @@ public:
     return Y;
   }
         
-  MeasureType GetFittedValue( const ParametersType & parameters) const
+  MeasureType GetFittedVector( const ParametersType & parameters) const
   {
     MeasureType measure(RangeDimension);
 
@@ -261,6 +261,19 @@ public:
       measure[i] = 
         scale*((1-fraction)*exp(-1.*X[i]*diffusion)+fraction*exp(-1.*X[i]*perfusion));
       }
+    return measure;
+  }
+
+  float GetFittedValue(const ParametersType & parameters, float x) const
+  {
+    float scale = parameters[0],
+          fraction = parameters[1],
+          diffusion = parameters[2],
+          perfusion = parameters[3];
+
+      float measure = 
+        scale*((1-fraction)*exp(-1.*x*diffusion)+fraction*exp(-1.*x*perfusion));
+      
     return measure;
   }
 
@@ -332,6 +345,20 @@ private:
         
 };
 
+// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
+void OnlineVariance(itk::MultipleValuedCostFunction::MeasureType &values,
+    double &mean, double &SD){
+  double n = 0, M2 = 0;
+     
+  for(unsigned int i=0;i<values.GetSize();i++){
+    double x = values[i];
+    n++;
+    double delta = x - mean;
+    mean = mean + delta/n;
+    M2 = M2 + delta*(x - mean);
+  }
+  SD = sqrt(M2/(n-1));
+}
 
 // Use an anonymous namespace to keep class types and function names
 // from colliding when module is used as shared object module.  Every
@@ -468,12 +495,15 @@ int main( int argc, char * argv[])
   vvIt.GoToBegin();mvIt.GoToBegin();rsqrIt.GoToBegin();
   perfIt.GoToBegin();diffIt.GoToBegin();perfFracIt.GoToBegin();fittedIt.GoToBegin();
   for(;!diffIt.IsAtEnd();++vvIt,++mvIt,++perfIt,++diffIt,++perfFracIt,++fittedIt,++rsqrIt){
+      //if(cnt>10)
+      //  break;
       VectorVolumeType::PixelType vectorVoxel = vvIt.Get();
       VectorVolumeType::PixelType fittedVoxel(vectorVoxel.GetSize());
       for(int i=0;i<fittedVoxel.GetSize();i++)
        fittedVoxel[i] = 0;
 
       if(mvIt.Get() && vectorVoxel[0]){
+        //cnt++;
         costFunction->SetX(bValuesPtr, numValues);
         costFunction->SetY(const_cast<float*>(vectorVoxel.GetDataPointer()),numValues);
         MultiExpDecayCostFunction::MeasureType temp = costFunction->GetValue(initialValue);
@@ -492,25 +522,80 @@ int main( int argc, char * argv[])
           optimizer->SetInitialPosition(initialValue);
           optimizer->StartOptimization();
         } catch(itk::ExceptionObject &e) {
-            std::cout << " Exception caught: " << e << std::endl;
+            std::cerr << " Exception caught: " << e << std::endl;
 
         }
 
-        itk::LevenbergMarquardtOptimizer::ParametersType finalPosition;
+       itk::LevenbergMarquardtOptimizer::ParametersType finalPosition;
+
+       if(filterFitOutliers){
+          // Assume outlier is a point that has a residual error that 
+          // deviates more than 3 SDs from the mean residual.
+          // If outliers are present, fit the data agin after ignoring
+          // the corresponding data points.
+          itk::MultipleValuedCostFunction::MeasureType residuals = 
+            costFunction->GetValue(optimizer->GetCurrentPosition());
+          double mean, sd;
+          OnlineVariance(residuals, mean, sd);
+          float *filteredX, *filteredY;
+          unsigned int numValues = 0;
+          filteredX = new float[bValues.size()];
+          filteredY = new float[bValues.size()];
+          for(unsigned int i=0;i<residuals.GetSize();i++){
+            if(fabs(residuals[i]-mean)<2.*sd){
+              filteredX[i] = bValues[i];
+              filteredY[i] = vectorVoxel[i];
+              numValues++;
+            }
+          }
+          if(numValues != bValues.size() && numValues>3){
+            /*
+            //std::cout << "Before re-fit: ";
+            for(int i=0;i<bValues.size();i++){
+              fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
+              //std::cout << fittedVoxel[i] << " ";
+            }
+            //std::cout << std::endl;
+            */
+
+            // need to re-fit!
+            optimizer->SetInitialPosition(initialValue);
+            costFunction->SetX(filteredX, numValues);
+            costFunction->SetY(filteredY, numValues);
+            optimizer->SetCostFunction(costFunction);
+            try{
+              optimizer->StartOptimization();
+            } catch(itk::ExceptionObject &e){
+              std::cerr << "Exception while trying to optimize using filtered values" << std::endl;
+            }
+            
+            /*
+            finalPosition = optimizer->GetCurrentPosition();
+            std::cout << "After re-fit: ";
+            for(int i=0;i<bValues.size();i++){
+              fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
+              //std::cout << fittedVoxel[i] << " ";
+            }
+            //std::cout << std::endl;
+            */
+          }
+        } 
+
+        // done with fitting
         finalPosition = optimizer->GetCurrentPosition();
-
-        MultiExpDecayCostFunction::MeasureType fittedMeasure = 
-          costFunction->GetFittedValue(finalPosition);
         for(int i=0;i<fittedVoxel.GetSize();i++){
-          fittedVoxel[i] = fittedMeasure[i];
+          fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
+          //std::cout << fittedVoxel[i] << " ";
         }
-
+        //std::cout << std::endl;
+        fittedIt.Set(fittedVoxel);
+ 
         perfFracIt.Set(finalPosition[1]);
         diffIt.Set(finalPosition[2]*1e+6);
         perfIt.Set(finalPosition[3]*1e+6);
 
         // initialize the rsqr map
-        // see PkModeling/CLI/itkConcenttationToQuantitativeImageFilter.hxx:452
+        // see PkModeling/CLI/itkConcentrationToQuantitativeImageFilter.hxx:452
         {
           MultiExpDecayCostFunction::MeasureType residuals = costFunction->GetValue(optimizer->GetCurrentPosition());
           double rms = optimizer->GetOptimizer()->get_end_error();
@@ -527,7 +612,6 @@ int main( int argc, char * argv[])
           rsqrIt.Set(rSquared);
         }
 
-        fittedIt.Set(fittedVoxel);
       }
   }
 
