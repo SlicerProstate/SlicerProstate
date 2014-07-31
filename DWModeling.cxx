@@ -55,7 +55,7 @@ std::vector<float> GetBvalues(itk::MetaDataDictionary& dictionary)
       std::string frameLabelsString;
       itk::ExposeMetaData(dictionary, "MultiVolume.FrameLabels", frameLabelsString);
       std::stringstream frameLabelsStream(frameLabelsString);
-      if (tag == "B-value")
+      if (tag == "GE.B-value")
         {
         float t;
         while (frameLabelsStream >> t)
@@ -253,13 +253,13 @@ public:
 
     float scale = parameters[0],
           fraction = parameters[1],
-          diffusion = parameters[2],
-          perfusion = parameters[3];
+          slowDiff = parameters[2],
+          fastDiff = parameters[3];
 
     for(int i=0;i<measure.size();i++)
       {
       measure[i] = 
-        scale*((1-fraction)*exp(-1.*X[i]*diffusion)+fraction*exp(-1.*X[i]*perfusion));
+        scale*((1-fraction)*exp(-1.*X[i]*slowDiff)+fraction*exp(-1.*X[i]*fastDiff));
       }
     return measure;
   }
@@ -268,11 +268,11 @@ public:
   {
     float scale = parameters[0],
           fraction = parameters[1],
-          diffusion = parameters[2],
-          perfusion = parameters[3];
+          slowDiff = parameters[2],
+          fastDiff = parameters[3];
 
       float measure = 
-        scale*((1-fraction)*exp(-1.*x*diffusion)+fraction*exp(-1.*x*perfusion));
+        scale*((1-fraction)*exp(-1.*x*slowDiff)+fraction*exp(-1.*x*fastDiff));
       
     return measure;
   }
@@ -283,13 +283,13 @@ public:
 
     float scale = parameters[0],
           fraction = parameters[1],
-          diffusion = parameters[2],
-          perfusion = parameters[3];
+          slowDiff = parameters[2],
+          fastDiff = parameters[3];
 
     for(int i=0;i<measure.size();i++)
       {
       measure[i] = 
-        Y[i]-scale*((1-fraction)*exp(-1.*X[i]*diffusion)+fraction*exp(-1.*X[i]*perfusion));
+        Y[i]-scale*((1-fraction)*exp(-1.*X[i]*slowDiff)+fraction*exp(-1.*X[i]*fastDiff));
       }
            
     return measure; 
@@ -435,26 +435,26 @@ int main( int argc, char * argv[])
     return EXIT_FAILURE;
     }
 
-  MapVolumeType::Pointer diffusionMap = MapVolumeType::New();
-  diffusionMap->SetRegions(maskVolume->GetLargestPossibleRegion());
-  diffusionMap->Allocate();
-  diffusionMap->FillBuffer(0);
-  diffusionMap->CopyInformation(maskVolume);
-  diffusionMap->FillBuffer(0);
+  MapVolumeType::Pointer slowDiffMap = MapVolumeType::New();
+  slowDiffMap->SetRegions(maskVolume->GetLargestPossibleRegion());
+  slowDiffMap->Allocate();
+  slowDiffMap->FillBuffer(0);
+  slowDiffMap->CopyInformation(maskVolume);
+  slowDiffMap->FillBuffer(0);
 
-  MapVolumeType::Pointer perfusionMap = MapVolumeType::New();
-  perfusionMap->SetRegions(maskVolume->GetLargestPossibleRegion());
-  perfusionMap->Allocate();
-  perfusionMap->FillBuffer(0);
-  perfusionMap->CopyInformation(maskVolume);
-  perfusionMap->FillBuffer(0);
+  MapVolumeType::Pointer fastDiffMap = MapVolumeType::New();
+  fastDiffMap->SetRegions(maskVolume->GetLargestPossibleRegion());
+  fastDiffMap->Allocate();
+  fastDiffMap->FillBuffer(0);
+  fastDiffMap->CopyInformation(maskVolume);
+  fastDiffMap->FillBuffer(0);
 
-  MapVolumeType::Pointer perfusionFractionMap = MapVolumeType::New();
-  perfusionFractionMap->SetRegions(maskVolume->GetLargestPossibleRegion());
-  perfusionFractionMap->Allocate();
-  perfusionFractionMap->FillBuffer(0);
-  perfusionFractionMap->CopyInformation(maskVolume);
-  perfusionFractionMap->FillBuffer(0);
+  MapVolumeType::Pointer fastDiffFractionMap = MapVolumeType::New();
+  fastDiffFractionMap->SetRegions(maskVolume->GetLargestPossibleRegion());
+  fastDiffFractionMap->Allocate();
+  fastDiffFractionMap->FillBuffer(0);
+  fastDiffFractionMap->CopyInformation(maskVolume);
+  fastDiffFractionMap->FillBuffer(0);
 
   MapVolumeType::Pointer rsqrMap = MapVolumeType::New();
   rsqrMap->SetRegions(maskVolume->GetLargestPossibleRegion());
@@ -474,9 +474,9 @@ int main( int argc, char * argv[])
 
   VectorVolumeIteratorType vvIt(inputVectorVolume, inputVectorVolume->GetLargestPossibleRegion());
   MaskVolumeIteratorType mvIt(maskVolume, maskVolume->GetLargestPossibleRegion());
-  MapVolumeIteratorType diffIt(diffusionMap, diffusionMap->GetLargestPossibleRegion());
-  MapVolumeIteratorType perfIt(perfusionMap, perfusionMap->GetLargestPossibleRegion());
-  MapVolumeIteratorType perfFracIt(perfusionFractionMap, perfusionFractionMap->GetLargestPossibleRegion());
+  MapVolumeIteratorType diffIt(slowDiffMap, slowDiffMap->GetLargestPossibleRegion());
+  MapVolumeIteratorType perfIt(fastDiffMap, fastDiffMap->GetLargestPossibleRegion());
+  MapVolumeIteratorType perfFracIt(fastDiffFractionMap, fastDiffFractionMap->GetLargestPossibleRegion());
   MapVolumeIteratorType rsqrIt(rsqrMap, rsqrMap->GetLargestPossibleRegion());
   VectorVolumeIteratorType fittedIt(fittedVolume, fittedVolume->GetLargestPossibleRegion());
 
@@ -618,24 +618,24 @@ int main( int argc, char * argv[])
   }
 
 
-  if(diffusionMapFileName.size()){
+  if(slowDiffMapFileName.size()){
     MapWriterType::Pointer writer = MapWriterType::New();
-    writer->SetInput(diffusionMap);
-    writer->SetFileName(diffusionMapFileName.c_str());
+    writer->SetInput(slowDiffMap);
+    writer->SetFileName(slowDiffMapFileName.c_str());
     writer->SetUseCompression(1);
     writer->Update();
   }
-  if(perfusionMapFileName.size()){
+  if(fastDiffMapFileName.size()){
     MapWriterType::Pointer writer = MapWriterType::New();
-    writer->SetInput(perfusionMap);
-    writer->SetFileName(perfusionMapFileName.c_str());
+    writer->SetInput(fastDiffMap);
+    writer->SetFileName(fastDiffMapFileName.c_str());
     writer->SetUseCompression(1);
     writer->Update();
   }
-  if(perfusionFractionMapFileName.size()){
+  if(fastDiffFractionMapFileName.size()){
     MapWriterType::Pointer writer = MapWriterType::New();
-    writer->SetInput(perfusionFractionMap);
-    writer->SetFileName(perfusionFractionMapFileName.c_str());
+    writer->SetInput(fastDiffFractionMap);
+    writer->SetFileName(fastDiffFractionMapFileName.c_str());
     writer->SetUseCompression(1);
     writer->Update();
   }

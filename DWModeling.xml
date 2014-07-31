@@ -36,24 +36,24 @@
     </image>
 
     <image>
-      <name>diffusionMapFileName</name>
-      <longflag>diffusion</longflag>
+      <name>slowDiffMapFileName</name>
+      <longflag>slowDiff</longflag>
       <label>Slow diffusion map</label>
       <channel>output</channel>
       <description>Coefficient map for the slow diffusion component</description>
     </image>
 
     <image>
-      <name>perfusionMapFileName</name>
-      <longflag>perfusion</longflag>
+      <name>fastDiffMapFileName</name>
+      <longflag>fastDiff</longflag>
       <label>Fast diffusion map</label>
       <channel>output</channel>
       <description>Coefficient map for the fast diffusion component</description>
     </image>
 
     <image>
-      <name>perfusionFractionMapFileName</name>
-      <longflag>perfusionFraction</longflag>
+      <name>fastDiffFractionMapFileName</name>
+      <longflag>fastDiffFraction</longflag>
       <label>Fast diffusion fraction map</label>
       <channel>output</channel>
       <description>Fast diffusion fraction coefficient map</description>
