@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<executable>
+  <category>Converters</category>
+  <title>QuadEdge Surface Mesher</title>
+  <description><![CDATA[Recover and simplify triangular surface mesh from a binary image.]]></description>
+  <version>0.0.1</version>
+  <documentation-url></documentation-url>
+  <license>Slicer</license>
+  <contributor>Andriy Fedorov (SPL/BWH)</contributor>
+  <acknowledgements>This work was partially funded by NIH grants ...</acknowledgements>
+  <parameters>
+    <label>IO</label>
+    <description>Input/output parameters</description>
+
+    <image>
+      <name>inputImageName</name>
+      <label>Input image</label>
+      <channel>input</channel>
+      <description>Segmentation label image</description>
+      <index>0</index>
+    </image>
+
+    <integer>
+      <name>labelId</name>
+      <label>Label to mesh</label>
+      <longflag>label</longflag>
+      <channel>input</channel>
+      <description>Label to mesh</description>
+      <default>1</default>
+    </integer>
+
+    <float>
+      <name>decimationConst</name>
+      <label>Decimation constant</label>
+      <longflag>decimation</longflag>
+      <channel>input</channel>
+      <description>Number of cells in the output mesh will be the original number of cells times the decimation constant</description>
+      <default>0.1</default>
+    </float>
+
+    <geometry type="model">
+      <name>outputMeshName</name>
+      <label>Output triangulated surface</label>
+      <channel>output</channel>
+      <description>Surface </description>
+      <index>1</index>
+    </geometry>
+
+    </parameters>
+</executable>
