@@ -8,10 +8,10 @@ import SimpleITK as sitk
 import sitkUtils
 
 #
-# LabelRegistration
+# DistanceMapBasedRegistration
 #
 
-class LabelRegistration(ScriptedLoadableModule):
+class DistanceMapBasedRegistration(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
 
@@ -20,8 +20,8 @@ class LabelRegistration(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "LabelRegistration" # TODO make this more human readable by adding spaces
-    self.parent.categories = ["Registration"]
+    self.parent.title = "Distance Map Based Registration" # TODO make this more human readable by adding spaces
+    self.parent.categories = ["Registration.Label Registration"]
     self.parent.dependencies = ['SegmentationSmoothing','QuadEdgeSurfaceMesher']
     self.parent.contributors = ["John Doe (AnyWare Corp.)"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
@@ -34,10 +34,10 @@ class LabelRegistration(ScriptedLoadableModule):
 """ # replace with organization, grant and thanks.
 
 #
-# LabelRegistrationWidget
+# DistanceMapBasedRegistrationWidget
 #
 
-class LabelRegistrationWidget(ScriptedLoadableModuleWidget):
+class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -245,7 +245,7 @@ class LabelRegistrationWidget(ScriptedLoadableModuleWidget):
     pass
 
   def onApplyButton(self):
-    logic = LabelRegistrationLogic()
+    logic = DistanceMapBasedRegistrationLogic()
     self.parameterNode = slicer.vtkMRMLScriptedModuleNode()
 
     # TODO: add checks for the selectors' content
@@ -282,10 +282,10 @@ class LabelRegistrationWidget(ScriptedLoadableModuleWidget):
     return
 
 #
-# LabelRegistrationLogic
+# DistanceMapBasedRegistrationLogic
 #
 
-class LabelRegistrationLogic(ScriptedLoadableModuleLogic):
+class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -534,7 +534,7 @@ class LabelRegistrationLogic(ScriptedLoadableModuleLogic):
     node.SetAndObserveStorageNodeID(storageNode.GetID())
     return node
 
-class LabelRegistrationTest(ScriptedLoadableModuleTest):
+class DistanceMapBasedRegistrationTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   Uses ScriptedLoadableModuleTest base class, available at:
@@ -550,9 +550,9 @@ class LabelRegistrationTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_LabelRegistration1()
+    self.test_DistanceMapBasedRegistration1()
 
-  def test_LabelRegistration1(self):
+  def test_DistanceMapBasedRegistration1(self):
     """ Ideally you should have several levels of tests.  At the lowest level
     tests should exercise the functionality of the logic with different inputs
     (both valid and invalid).  At higher levels your tests should emulate the
@@ -584,7 +584,7 @@ class LabelRegistrationTest(ScriptedLoadableModuleTest):
     self.delayDisplay('Finished with download and loading')
 
     volumeNode = slicer.util.getNode(pattern="FA")
-    logic = LabelRegistrationLogic()
+    logic = DistanceMapBasedRegistrationLogic()
     self.assertTrue( logic.hasImageData(volumeNode) )
     self.delayDisplay('Test passed!')
 

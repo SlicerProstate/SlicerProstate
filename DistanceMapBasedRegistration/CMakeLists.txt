@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-set(MODULE_NAME LabelRegistration)
+set(MODULE_NAME DistanceMapBasedRegistration)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
