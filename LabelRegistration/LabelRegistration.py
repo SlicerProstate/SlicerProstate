@@ -230,6 +230,13 @@ class LabelRegistrationWidget(ScriptedLoadableModuleWidget):
     # Refresh Apply button state
     #self.onSelect()
 
+    '''
+    TODO:
+     * improve GUI structure - separate parameters and visualization
+     * improve interaction signal/slots
+
+    '''
+
   def cleanup(self):
     pass
 
@@ -580,3 +587,11 @@ class LabelRegistrationTest(ScriptedLoadableModuleTest):
     logic = LabelRegistrationLogic()
     self.assertTrue( logic.hasImageData(volumeNode) )
     self.delayDisplay('Test passed!')
+
+
+    '''
+
+    TODO:
+     * add main() so that registration could be run from command line
+
+    '''
