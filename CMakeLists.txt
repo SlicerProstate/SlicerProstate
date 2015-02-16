@@ -18,9 +18,9 @@ include(${Slicer_USE_FILE})
 
 #-----------------------------------------------------------------------------
 # Extension modules
-#add_subdirectory(QuadEdgeSurfaceMesher)
+add_subdirectory(QuadEdgeSurfaceMesher)
 add_subdirectory(SegmentationSmoothing)
-add_subdirectory(DTRegistration)
+add_subdirectory(LabelRegistration)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------

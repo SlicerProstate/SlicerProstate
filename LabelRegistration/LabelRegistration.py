@@ -8,10 +8,10 @@ import SimpleITK as sitk
 import sitkUtils
 
 #
-# DTRegistration
+# LabelRegistration
 #
 
-class DTRegistration(ScriptedLoadableModule):
+class LabelRegistration(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
 
@@ -20,9 +20,9 @@ class DTRegistration(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "DTRegistration" # TODO make this more human readable by adding spaces
+    self.parent.title = "LabelRegistration" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Registration"]
-    self.parent.dependencies = ['SegmentationSmoothing']
+    self.parent.dependencies = ['SegmentationSmoothing','QuadEdgeSurfaceMesher']
     self.parent.contributors = ["John Doe (AnyWare Corp.)"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
     This is an example of scripted loadable module bundled in an extension.
@@ -34,10 +34,10 @@ class DTRegistration(ScriptedLoadableModule):
 """ # replace with organization, grant and thanks.
 
 #
-# DTRegistrationWidget
+# LabelRegistrationWidget
 #
 
-class DTRegistrationWidget(ScriptedLoadableModuleWidget):
+class LabelRegistrationWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -173,6 +173,26 @@ class DTRegistrationWidget(ScriptedLoadableModuleWidget):
     # Add parameter node to facilitate registration from other modules and
     # command line
     #
+
+    self.visualizationCheckbox = qt.QCheckBox()
+    parametersFormLayout.addRow("Visualize results:",self.visualizationCheckbox)
+
+    groupLabel = qt.QLabel('Visualization mode:')
+    self.registrationModeGroup = qt.QButtonGroup()
+    self.noRegistrationRadio = qt.QRadioButton('No registration')
+    self.linearRegistrationRadio = qt.QRadioButton('Linear registration')
+    self.deformableRegistrationRadio = qt.QRadioButton('Deformable registration')
+    self.noRegistrationRadio.setChecked(1)
+    self.registrationModeGroup.addButton(self.noRegistrationRadio,1)
+    self.registrationModeGroup.addButton(self.linearRegistrationRadio,2)
+    self.registrationModeGroup.addButton(self.deformableRegistrationRadio,3)
+    parametersFormLayout.addRow(qt.QLabel("Visualization mode"))
+    parametersFormLayout.addRow("",self.noRegistrationRadio)
+    parametersFormLayout.addRow("",self.linearRegistrationRadio)
+    parametersFormLayout.addRow("",self.deformableRegistrationRadio)
+
+    self.registrationModeGroup.connect('buttonClicked(int)',self.onVisualizationModeClicked)
+
     '''
     self.imageThresholdSliderWidget = ctk.ctkSliderWidget()
     self.imageThresholdSliderWidget.singleStep = 0.1
@@ -218,24 +238,47 @@ class DTRegistrationWidget(ScriptedLoadableModuleWidget):
     pass
 
   def onApplyButton(self):
-    logic = DTRegistrationLogic()
-    parameterNode = slicer.vtkMRMLScriptedModuleNode()
+    logic = LabelRegistrationLogic()
+    self.parameterNode = slicer.vtkMRMLScriptedModuleNode()
 
     # TODO: add checks for the selectors' content
-    parameterNode.SetAttribute('FixedImageNodeID', self.fixedImageSelector.currentNode().GetID())
-    parameterNode.SetAttribute('FixedLabelNodeID', self.fixedImageLabelSelector.currentNode().GetID())
-    parameterNode.SetAttribute('MovingImageNodeID', self.movingImageSelector.currentNode().GetID())
-    parameterNode.SetAttribute('MovingLabelNodeID', self.movingImageLabelSelector.currentNode().GetID())
-    parameterNode.SetAttribute('OutputVolumeNodeID', self.outputImageSelector.currentNode().GetID())
-    parameterNode.SetAttribute('AffineTransformNodeID', self.affineTransformSelector.currentNode().GetID())
-    parameterNode.SetAttribute('BSplineTransformNodeID', self.bsplineTransformSelector.currentNode().GetID())
-    logic.run(parameterNode)
+    self.parameterNode.SetAttribute('FixedImageNodeID', self.fixedImageSelector.currentNode().GetID())
+    self.parameterNode.SetAttribute('FixedLabelNodeID', self.fixedImageLabelSelector.currentNode().GetID())
+    self.parameterNode.SetAttribute('MovingImageNodeID', self.movingImageSelector.currentNode().GetID())
+    self.parameterNode.SetAttribute('MovingLabelNodeID', self.movingImageLabelSelector.currentNode().GetID())
+    self.parameterNode.SetAttribute('OutputVolumeNodeID', self.outputImageSelector.currentNode().GetID())
+    self.parameterNode.SetAttribute('AffineTransformNodeID', self.affineTransformSelector.currentNode().GetID())
+    self.parameterNode.SetAttribute('BSplineTransformNodeID', self.bsplineTransformSelector.currentNode().GetID())
+    logic.run(self.parameterNode)
+
+    # resample moving volume
+    # logic.resample(self.parameterNode)
+
+    # configure the GUI
+    logic.showResults(self.parameterNode)
+
+    return
+
+  def onVisualizationModeClicked(self,mode):
+    movingVolume = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('MovingImageNodeID'))
+    movingSurface = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('MovingLabelSurfaceID'))
+
+    if mode == 1:
+      movingVolume.SetAndObserveTransformNodeID('')
+      movingSurface.SetAndObserveTransformNodeID('')
+    if mode == 2:
+      movingVolume.SetAndObserveTransformNodeID(self.parameterNode.GetAttribute('AffineTransformNodeID'))
+      movingSurface.SetAndObserveTransformNodeID(self.parameterNode.GetAttribute('AffineTransformNodeID'))
+    if mode == 3:
+      movingVolume.SetAndObserveTransformNodeID(self.parameterNode.GetAttribute('BSplineTransformNodeID'))
+      movingSurface.SetAndObserveTransformNodeID(self.parameterNode.GetAttribute('BSplineTransformNodeID'))
+    return
 
 #
-# DTRegistrationLogic
+# LabelRegistrationLogic
 #
 
-class DTRegistrationLogic(ScriptedLoadableModuleLogic):
+class LabelRegistrationLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -297,18 +340,34 @@ class DTRegistrationLogic(ScriptedLoadableModuleLogic):
 
     (bbMin,bbMax) = self.getBoundingBox(fixedLabelNodeID, movingLabelNodeID)
 
+    print("Before preprocessing")
+
     fixedLabelDistanceMap = self.preProcessLabel(fixedLabelNodeID, bbMin, bbMax)
+    parameterNode.SetAttribute('FixedLabelDistanceMapID',fixedLabelDistanceMap.GetID())
+    fixedLabelSmoothed = slicer.util.getNode(slicer.mrmlScene.GetNodeByID(fixedLabelNodeID).GetName()+'-Smoothed')
+    parameterNode.SetAttribute('FixedLabelSmoothedID',fixedLabelSmoothed.GetID())
+
+    print('Fixed label processing done')
+
     movingLabelDistanceMap = self.preProcessLabel(movingLabelNodeID, bbMin, bbMax)
+    parameterNode.SetAttribute('MovingLabelDistanceMapID',movingLabelDistanceMap.GetID())
+    movingLabelSmoothed = slicer.util.getNode(slicer.mrmlScene.GetNodeByID(movingLabelNodeID).GetName()+'-Smoothed')
+    parameterNode.SetAttribute('MovingLabelSmoothedID',movingLabelSmoothed.GetID())
+    print('Moving label processing done')
 
     # run registration
 
     registrationParameters = {'fixedVolume':fixedLabelDistanceMap.GetID(), 'movingVolume':movingLabelDistanceMap.GetID(),'useRigid':True,'useAffine':True,'numberOfSamples':'10000','costMetric':'MSE','outputTransform':affineTransformNode.GetID()}
     slicer.cli.run(slicer.modules.brainsfit, None, registrationParameters, wait_for_completion=True)
 
+    parameterNode.SetAttribute('AffineTransformNodeID',affineTransformNode.GetID())
+
     print('affineRegistrationCompleted!')
 
     registrationParameters = {'fixedVolume':fixedLabelDistanceMap.GetID(), 'movingVolume':movingLabelDistanceMap.GetID(),'useBSpline':True,'splineGridSize':'3,3,3','numberOfSamples':'10000','costMetric':'MSE','bsplineTransform':bsplineTransformNode.GetID(),'initialTransform':affineTransformNode.GetID()}
     slicer.cli.run(slicer.modules.brainsfit, None, registrationParameters, wait_for_completion=True)
+
+    parameterNode.SetAttribute('BSplineTransformNodeID',bsplineTransformNode.GetID())
 
     print('bsplineRegistrationCompleted!')
 
@@ -316,12 +375,74 @@ class DTRegistrationLogic(ScriptedLoadableModuleLogic):
 
     return True
 
+  def showResults(self,parameterNode):
+    # duplicate moving volume
+
+    self.makeSurfaceModels(parameterNode)
+
+    volumesLogic = slicer.modules.volumes.logic()
+    movingImageCloneID = parameterNode.GetAttribute('MovingImageCloneID')
+    movingImageID = parameterNode.GetAttribute('MovingImageNodeID')
+    fixedImageID = parameterNode.GetAttribute('FixedImageNodeID')
+    movingImageNode = slicer.mrmlScene.GetNodeByID(movingImageID)
+
+    if movingImageCloneID:
+      slicer.mrmlScene.RemoveNode(slicer.mrmlScene.GetNodeByID(movingImageCloneID))
+    
+    movingImageClone = volumesLogic.CloneVolume(movingImageNode,'MovingImageCopy')
+    parameterNode.SetAttribute('MovingImageCloneID',movingImageClone.GetID())
+
+    lm = slicer.app.layoutManager()
+    lm.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpView)
+
+    sliceCompositeNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSliceCompositeNode')
+    sliceCompositeNodes.SetReferenceCount(sliceCompositeNodes.GetReferenceCount()-1)
+    for i in range(sliceCompositeNodes.GetNumberOfItems()):
+      scn = sliceCompositeNodes.GetItemAsObject(i)
+      scn.SetForegroundVolumeID(fixedImageID)
+      scn.SetBackgroundVolumeID(movingImageID)
+    
+    return
+
+    # create surface model for the moving volume segmentation
+    # apply transforms based on user input (none, affine, deformable)
+    # (need to create another panel in the GUI for visualization)
+    # enable transform visualization in-slice and 3d
+
+  def makeSurfaceModels(self,parameterNode):
+    fixedModel = slicer.vtkMRMLModelNode()
+    slicer.mrmlScene.AddNode(fixedModel)
+    parameters = {'inputImageName':parameterNode.GetAttribute('FixedLabelSmoothedID'),'outputMeshName':fixedModel.GetID()}
+    slicer.cli.run(slicer.modules.quadedgesurfacemesher,None,parameters,wait_for_completion=True)
+    parameterNode.SetAttribute('FixedLabelSurfaceID',fixedModel.GetID())
+    fixedModel.GetDisplayNode().SetColor(0.9,0.9,0)
+
+    movingModel = slicer.vtkMRMLModelNode()
+    slicer.mrmlScene.AddNode(movingModel)
+    parameters = {'inputImageName':parameterNode.GetAttribute('MovingLabelSmoothedID'),'outputMeshName':movingModel.GetID()}
+    slicer.cli.run(slicer.modules.quadedgesurfacemesher,None,parameters,wait_for_completion=True)
+    parameterNode.SetAttribute('MovingLabelSurfaceID',movingModel.GetID())
+    movingModel.GetDisplayNode().SetColor(0,0.9,0.9)
+
+    return
+
+  def resample(self,parameterNode):
+    resampleParameters = {'fixedVolume':fixedLabelDistanceMap.GetID(), 'movingVolume':movingLabelDistanceMap.GetID(),'useRigid':True,'useAffine':True,'numberOfSamples':'10000','costMetric':'MSE','outputTransform':affineTransformNode.GetID()}
+    slicer.cli.run(slicer.modules.brainsfit, None, registrationParameters, wait_for_completion=True)
+
+    parameterNode.SetAttribute('AffineTransformNodeID',affineTransformNode.GetID())
+
+
+
   def getBoundingBox(self,fixedLabelNodeID,movingLabelNodeID):
 
     ls = sitk.LabelStatisticsImageFilter()
 
-    fixedLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(fixedLabelNodeID)
-    movingLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(movingLabelNodeID)
+    fixedLabelNode = slicer.mrmlScene.GetNodeByID(fixedLabelNodeID)
+    movingLabelNode = slicer.mrmlScene.GetNodeByID(movingLabelNodeID)
+
+    fixedLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(fixedLabelNode.GetName())
+    movingLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(movingLabelNode.GetName())
 
     fixedLabelImage = sitk.ReadImage(fixedLabelAddress)
     movingLabelImage = sitk.ReadImage(movingLabelAddress)
@@ -343,20 +464,32 @@ class DTRegistrationLogic(ScriptedLoadableModuleLogic):
 
   def preProcessLabel(self,labelNodeID,bbMin,bbMax):
 
+    print('Label node ID: '+labelNodeID)
+
     labelNode = slicer.util.getNode(labelNodeID)
 
-    labelNodeAddress = sitkUtils.GetSlicerITKReadWriteAddress(labelNodeID)
+    labelNodeAddress = sitkUtils.GetSlicerITKReadWriteAddress(labelNode.GetName())
+
+    print('Label node address: '+str(labelNodeAddress))
 
     labelImage = sitk.ReadImage(labelNodeAddress)
+
+    print('Read image: '+str(labelImage))
 
     crop = sitk.CropImageFilter()
     crop.SetLowerBoundaryCropSize(bbMin)
     crop.SetUpperBoundaryCropSize(bbMax)
     croppedImage = crop.Execute(labelImage)
 
+    print('Cropped image done: '+str(croppedImage))
+
     croppedLabelName = labelNode.GetName()+'-Cropped'
     sitkUtils.PushToSlicer(croppedImage,croppedLabelName,overwrite=True)
+    print('Cropped volume pushed')
+
     croppedLabel = slicer.util.getNode(croppedLabelName)
+
+    print('Smoothed image done')
 
     smoothLabelName = labelNode.GetName()+'-Smoothed'
     smoothLabel = self.createVolumeNode(smoothLabelName)
@@ -375,10 +508,10 @@ class DTRegistrationLogic(ScriptedLoadableModuleLogic):
     '''
 
     dt = sitk.SignedMaurerDistanceMapImageFilter()
-    dt.SetSquaredDistance(0)
+    dt.SetSquaredDistance(False)
     distanceMapName = labelNode.GetName()+'-DistanceMap'
-    print(smoothLabel.GetID())
-    smoothLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(smoothLabel.GetID())    
+    print('Reading smoothed image: '+smoothLabel.GetID())
+    smoothLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(smoothLabel.GetName())    
     smoothLabelImage = sitk.ReadImage(smoothLabelAddress)
     print(smoothLabelAddress)
     distanceImage = dt.Execute(smoothLabelImage)
@@ -394,7 +527,7 @@ class DTRegistrationLogic(ScriptedLoadableModuleLogic):
     node.SetAndObserveStorageNodeID(storageNode.GetID())
     return node
 
-class DTRegistrationTest(ScriptedLoadableModuleTest):
+class LabelRegistrationTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   Uses ScriptedLoadableModuleTest base class, available at:
@@ -410,9 +543,9 @@ class DTRegistrationTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_DTRegistration1()
+    self.test_LabelRegistration1()
 
-  def test_DTRegistration1(self):
+  def test_LabelRegistration1(self):
     """ Ideally you should have several levels of tests.  At the lowest level
     tests should exercise the functionality of the logic with different inputs
     (both valid and invalid).  At higher levels your tests should emulate the
@@ -444,6 +577,6 @@ class DTRegistrationTest(ScriptedLoadableModuleTest):
     self.delayDisplay('Finished with download and loading')
 
     volumeNode = slicer.util.getNode(pattern="FA")
-    logic = DTRegistrationLogic()
+    logic = LabelRegistrationLogic()
     self.assertTrue( logic.hasImageData(volumeNode) )
     self.delayDisplay('Test passed!')

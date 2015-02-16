@@ -38,7 +38,7 @@
       <default>0.1</default>
     </float>
 
-    <geometry type="model">
+    <geometry type="model" fileExtensions=".ply">
       <name>outputMeshName</name>
       <label>Output triangulated surface</label>
       <channel>output</channel>
