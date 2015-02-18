@@ -1,3 +1,5 @@
+#include <algorithm> // for std::min and std::max
+
 #include "itkSmoothingRecursiveGaussianImageFilter.h"
 #include "itkBinaryThresholdImageFilter.h"
 #include "itkImageFileWriter.h"
@@ -32,8 +34,8 @@ int main( int argc, char * argv[] )
 
   ImageType::SpacingType inputSpacing = inputImage->GetSpacing();
   ImageType::SpacingType outputSpacing, smoothSpacing;
-  float minSpacing = fmin(fmin(inputSpacing[0],inputSpacing[1]),inputSpacing[2]);
-  float maxSpacing = fmax(fmax(inputSpacing[0],inputSpacing[1]),inputSpacing[2]);
+  float minSpacing = std::min(std::min(inputSpacing[0],inputSpacing[1]),inputSpacing[2]);
+  float maxSpacing = std::max(std::max(inputSpacing[0],inputSpacing[1]),inputSpacing[2]);
   outputSpacing[0] = minSpacing;
   outputSpacing[1] = minSpacing;
   outputSpacing[2] = minSpacing;
