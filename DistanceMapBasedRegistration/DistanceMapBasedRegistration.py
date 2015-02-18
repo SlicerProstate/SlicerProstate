@@ -129,7 +129,8 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     self.affineTransformSelector.removeEnabled = False
     self.affineTransformSelector.noneEnabled = False
     self.affineTransformSelector.showHidden = False
-    self.affineTransformSelector.showChildNodeTypes = False # ?
+    self.affineTransformSelector.showChildNodeTypes = False
+    self.affineTransformSelector.baseName = 'Affine Transform'
     self.affineTransformSelector.setMRMLScene( slicer.mrmlScene )
     self.affineTransformSelector.setToolTip( "Registration affine transform" )
     parametersFormLayout.addRow("Registration affine transform: ", self.affineTransformSelector)
@@ -144,7 +145,8 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     self.bsplineTransformSelector.removeEnabled = False
     self.bsplineTransformSelector.noneEnabled = False
     self.bsplineTransformSelector.showHidden = False
-    self.bsplineTransformSelector.showChildNodeTypes = False # ?
+    self.bsplineTransformSelector.showChildNodeTypes = False
+    self.bsplineTransformSelector.baseName = 'Deformable Transform'
     self.bsplineTransformSelector.setMRMLScene( slicer.mrmlScene )
     self.bsplineTransformSelector.setToolTip( "Registration b-spline transform" )
     parametersFormLayout.addRow("Registration B-spline Transform: ", self.bsplineTransformSelector)
@@ -161,6 +163,7 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     self.outputImageSelector.noneEnabled = True
     self.outputImageSelector.showHidden = False
     self.outputImageSelector.showChildNodeTypes = False
+    self.outputImageSelector.baseName = 'Registered Volume'
     self.outputImageSelector.setMRMLScene( slicer.mrmlScene )
     self.outputImageSelector.setToolTip( "Registered volume" )
     parametersFormLayout.addRow("Registered Volume: ", self.outputImageSelector)
@@ -263,6 +266,8 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
 
     # configure the GUI
     logic.showResults(self.parameterNode)
+    self.noRegistrationRadio.checked = 1
+    self.onVisualizationModeClicked(1)
 
     return
 
@@ -270,15 +275,28 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     movingVolume = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('MovingImageNodeID'))
     movingSurface = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('MovingLabelSurfaceID'))
 
+    affineTransform = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('AffineTransformNodeID'))
+    bsplineTransform = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('BSplineTransformNodeID'))
+    affineDisplayNode = affineTransform.GetDisplayNode()
+    bsplineDisplayNode = bsplineTransform.GetDisplayNode()
+
     if mode == 1:
       movingVolume.SetAndObserveTransformNodeID('')
       movingSurface.SetAndObserveTransformNodeID('')
+      affineDisplayNode.SetSliceIntersectionVisibility(0)
+      bsplineDisplayNode.SetSliceIntersectionVisibility(0)
     if mode == 2:
-      movingVolume.SetAndObserveTransformNodeID(self.parameterNode.GetAttribute('AffineTransformNodeID'))
-      movingSurface.SetAndObserveTransformNodeID(self.parameterNode.GetAttribute('AffineTransformNodeID'))
+      movingVolume.SetAndObserveTransformNodeID(affineTransform.GetID())
+      movingSurface.SetAndObserveTransformNodeID(affineTransform.GetID())
+      affineDisplayNode.SetSliceIntersectionVisibility(1)
+      bsplineDisplayNode.SetSliceIntersectionVisibility(0)
+      affineDisplayNode.SetVisualizationMode(1)
     if mode == 3:
-      movingVolume.SetAndObserveTransformNodeID(self.parameterNode.GetAttribute('BSplineTransformNodeID'))
-      movingSurface.SetAndObserveTransformNodeID(self.parameterNode.GetAttribute('BSplineTransformNodeID'))
+      movingVolume.SetAndObserveTransformNodeID(bsplineTransform.GetID())
+      movingSurface.SetAndObserveTransformNodeID(bsplineTransform.GetID())
+      affineDisplayNode.SetSliceIntersectionVisibility(0)
+      bsplineDisplayNode.SetSliceIntersectionVisibility(1)
+      bsplineDisplayNode.SetVisualizationMode(1)
     return
 
 #
@@ -393,6 +411,13 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     fixedImageID = parameterNode.GetAttribute('FixedImageNodeID')
     movingImageNode = slicer.mrmlScene.GetNodeByID(movingImageID)
 
+    # display intersection of the fixed label surface in all slices
+    fixedLabelSurface = slicer.mrmlScene.GetNodeByID(parameterNode.GetAttribute('FixedLabelSurfaceID'))
+    modelDisplayNode = fixedLabelSurface.GetDisplayNode()
+    print('Set slice intersection')
+    modelDisplayNode.SetSliceIntersectionVisibility(1)
+    modelDisplayNode.SetSliceIntersectionThickness(3)
+
     if movingImageCloneID:
       slicer.mrmlScene.RemoveNode(slicer.mrmlScene.GetNodeByID(movingImageCloneID))
     
@@ -404,10 +429,14 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
 
     sliceCompositeNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSliceCompositeNode')
     sliceCompositeNodes.SetReferenceCount(sliceCompositeNodes.GetReferenceCount()-1)
+
     for i in range(sliceCompositeNodes.GetNumberOfItems()):
       scn = sliceCompositeNodes.GetItemAsObject(i)
       scn.SetForegroundVolumeID(fixedImageID)
       scn.SetBackgroundVolumeID(movingImageID)
+      scn.SetLabelVolumeID('')
+
+    # TODO: call the code to configure views based on the mode selected
     
     return
 
