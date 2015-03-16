@@ -25,13 +25,15 @@
       <label>B-values to include</label>
       <longflag>bvalInclude</longflag>
       <description>List of integers corresponding to the b-values that should be included in fitting data. Note that only one of the two lists (inlusion or exclusion) should be populated, or both can be empty, in which case all b-values will be used.</description>
+      <default></default>
     </integer-vector>
 
     <integer-vector>
       <name>bValuesToExclude</name>
       <label>B-values to include</label>
-      <longflag>bvalInclude</longflag>
+      <longflag>bvalExclude</longflag>
       <description>List of integers corresponding to the b-values that should be excluded from fitting data. Note that only one of the two lists (inlusion or exclusion) should be populated, or both can be empty, in which case all b-values will be used.</description>
+      <default></default>
     </integer-vector>
 
     <image type="dynamic-contrast-enhanced">
@@ -81,17 +83,6 @@
       <description>Output volume containing the R^2 measure of the quality of fit</description>
       <channel>output</channel>
     </image>
-
-    <!--
-    <boolean>
-      <name>filterFitOutliers</name>
-      <longflag>filterFitOutliers</longflag>
-      <label>Try to filter outliers</label>
-      <description>If selected, outlier points based on the fit residual error will be discarded, and a new fit will be done</description>
-      <channel>input</channel>
-      <default>0</default>
-    </boolean>
-    -->
 
     </parameters>
 </executable>

@@ -470,6 +470,7 @@ int main( int argc, char * argv[])
     imageValuesPtr = new float[bValuesSelected];
     for(int i=0;i<bValues.size();i++){
       static int j=0;
+      std::cout << bValues[i] << ":" << bValuesMask[i] << std::endl;
       if(bValuesMask[i])
         bValuesPtr[j++] = bValues[i];
     }
@@ -540,138 +541,80 @@ int main( int argc, char * argv[])
   vvIt.GoToBegin();mvIt.GoToBegin();rsqrIt.GoToBegin();
   perfIt.GoToBegin();diffIt.GoToBegin();perfFracIt.GoToBegin();fittedIt.GoToBegin();
   for(;!diffIt.IsAtEnd();++vvIt,++mvIt,++perfIt,++diffIt,++perfFracIt,++fittedIt,++rsqrIt){
-      //if(cnt>10)
-      //  break;
-      VectorVolumeType::PixelType vectorVoxel = vvIt.Get();
-      VectorVolumeType::PixelType fittedVoxel(vectorVoxel.GetSize());
-      for(int i=0;i<fittedVoxel.GetSize();i++)
-       fittedVoxel[i] = 0;
+    //if(cnt>10)
+    //  break;
+    VectorVolumeType::PixelType vectorVoxel = vvIt.Get();
+    VectorVolumeType::PixelType fittedVoxel(vectorVoxel.GetSize());
+    for(int i=0;i<fittedVoxel.GetSize();i++)
+     fittedVoxel[i] = 0;
 
-      if(mvIt.Get() && vectorVoxel[0]){
-        //cnt++;
+    if(mvIt.Get() && vectorVoxel[0]){
+      //cnt++;
 
-        // use only those values that were requested by the user
-        costFunction->SetX(bValuesPtr, bValuesSelected);
-        const float* imageVector = const_cast<float*>(vectorVoxel.GetDataPointer());
-        for(int i=0;i<bValuesTotal;i++){
-          static int j = 0;
-          if(bValuesMask[i])
-            imageValuesPtr[j++] = imageVector[i];
-        }
+      // use only those values that were requested by the user
+      costFunction->SetX(bValuesPtr, bValuesSelected);
+      const float* imageVector = const_cast<float*>(vectorVoxel.GetDataPointer());
+      for(int i=0;i<bValuesTotal;i++){
+        static int j = 0;
+        if(bValuesMask[i])
+          imageValuesPtr[j++] = imageVector[i];
+      }
 
-        costFunction->SetY(imageValuesPtr,bValuesSelected);
+      costFunction->SetY(imageValuesPtr,bValuesSelected);
 
-        initialValue[0] = vectorVoxel[0];
-        MultiExpDecayCostFunction::MeasureType temp = costFunction->GetValue(initialValue);
+      initialValue[0] = vectorVoxel[0];
+      MultiExpDecayCostFunction::MeasureType temp = costFunction->GetValue(initialValue);
 
-        optimizer->UseCostFunctionGradientOff();
-        optimizer->SetCostFunction(costFunction);
+      optimizer->UseCostFunctionGradientOff();
+      optimizer->SetCostFunction(costFunction);
 
-        itk::LevenbergMarquardtOptimizer::InternalOptimizerType *vnlOptimizer = optimizer->GetOptimizer();
-        vnlOptimizer->set_f_tolerance(1e-4f);
-        vnlOptimizer->set_g_tolerance(1e-4f);
-        vnlOptimizer->set_x_tolerance(1e-5f);
-        vnlOptimizer->set_epsilon_function(1e-9f);
-        vnlOptimizer->set_max_function_evals(200);
+      itk::LevenbergMarquardtOptimizer::InternalOptimizerType *vnlOptimizer = optimizer->GetOptimizer();
+      vnlOptimizer->set_f_tolerance(1e-4f);
+      vnlOptimizer->set_g_tolerance(1e-4f);
+      vnlOptimizer->set_x_tolerance(1e-5f);
+      vnlOptimizer->set_epsilon_function(1e-9f);
+      vnlOptimizer->set_max_function_evals(200);
 
-        try {
-          optimizer->SetInitialPosition(initialValue);
-          optimizer->StartOptimization();
-        } catch(itk::ExceptionObject &e) {
-            std::cerr << " Exception caught: " << e << std::endl;
-
-        }
-
-       itk::LevenbergMarquardtOptimizer::ParametersType finalPosition;
-
-       // Disabled for now: need to adjust this to work with selected b-values,
-       // and the benefit is also questionable, needs more work to evaluate.
-       //if(filterFitOutliers){
-       if(0){
-          // Assume outlier is a point that has a residual error that 
-          // deviates more than 3 SDs from the mean residual.
-          // If outliers are present, fit the data agin after ignoring
-          // the corresponding data points.
-          itk::MultipleValuedCostFunction::MeasureType residuals = 
-            costFunction->GetValue(optimizer->GetCurrentPosition());
-          double mean, sd;
-          OnlineVariance(residuals, mean, sd);
-          float *filteredX, *filteredY;
-          unsigned int numValues = 0;
-          filteredX = new float[bValues.size()];
-          filteredY = new float[bValues.size()];
-          for(unsigned int i=0;i<residuals.GetSize();i++){
-            if(fabs(residuals[i]-mean)<2.*sd){
-              filteredX[i] = bValues[i];
-              filteredY[i] = vectorVoxel[i];
-              numValues++;
-            }
-          }
-          if(numValues != bValues.size() && numValues>3){
-            /*
-            //std::cout << "Before re-fit: ";
-            for(int i=0;i<bValues.size();i++){
-              fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
-              //std::cout << fittedVoxel[i] << " ";
-            }
-            //std::cout << std::endl;
-            */
-
-            // need to re-fit!
-            optimizer->SetInitialPosition(initialValue);
-            costFunction->SetX(filteredX, numValues);
-            costFunction->SetY(filteredY, numValues);
-            optimizer->SetCostFunction(costFunction);
-            try{
-              optimizer->StartOptimization();
-            } catch(itk::ExceptionObject &e){
-              std::cerr << "Exception while trying to optimize using filtered values" << std::endl;
-            }
-            
-            /*
-            finalPosition = optimizer->GetCurrentPosition();
-            std::cout << "After re-fit: ";
-            for(int i=0;i<bValues.size();i++){
-              fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
-              //std::cout << fittedVoxel[i] << " ";
-            }
-            //std::cout << std::endl;
-            */
-          }
-        } 
-
-        // done with fitting
-        finalPosition = optimizer->GetCurrentPosition();
-        for(int i=0;i<fittedVoxel.GetSize();i++){
-          fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
-          //std::cout << fittedVoxel[i] << " ";
-        }
-        //std::cout << std::endl;
-        fittedIt.Set(fittedVoxel);
- 
-        perfFracIt.Set(finalPosition[1]);
-        diffIt.Set(finalPosition[2]*1e+6);
-        perfIt.Set(finalPosition[3]*1e+6);
-
-        // initialize the rsqr map
-        // see PkModeling/CLI/itkConcentrationToQuantitativeImageFilter.hxx:452
-        {
-          MultiExpDecayCostFunction::MeasureType residuals = costFunction->GetValue(optimizer->GetCurrentPosition());
-          double rms = optimizer->GetOptimizer()->get_end_error();
-          double SSerr = rms*rms*vectorVoxel.GetSize();
-          double sumSquared = 0.0;
-          double sum = 0.0;
-          for (unsigned int i=0; i < vectorVoxel.GetSize(); ++i){
-            sum += vectorVoxel[i];
-            sumSquared += (vectorVoxel[i]*vectorVoxel[i]);
-          }
-          double SStot = sumSquared - sum*sum/(double)vectorVoxel.GetSize();
-     
-          double rSquared = 1.0 - (SSerr / SStot);
-          rsqrIt.Set(rSquared);
-        }
+      try {
+        optimizer->SetInitialPosition(initialValue);
+        optimizer->StartOptimization();
+      } catch(itk::ExceptionObject &e) {
+          std::cerr << " Exception caught: " << e << std::endl;
 
       }
+
+     itk::LevenbergMarquardtOptimizer::ParametersType finalPosition;
+
+     finalPosition = optimizer->GetCurrentPosition();
+     for(int i=0;i<fittedVoxel.GetSize();i++){
+       fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
+       //std::cout << fittedVoxel[i] << " ";
+     }
+     //std::cout << std::endl;
+     fittedIt.Set(fittedVoxel);
+
+     perfFracIt.Set(finalPosition[1]);
+     diffIt.Set(finalPosition[2]*1e+6);
+     perfIt.Set(finalPosition[3]*1e+6);
+
+     // initialize the rsqr map
+     // see PkModeling/CLI/itkConcentrationToQuantitativeImageFilter.hxx:452
+     {
+       MultiExpDecayCostFunction::MeasureType residuals = costFunction->GetValue(optimizer->GetCurrentPosition());
+       double rms = optimizer->GetOptimizer()->get_end_error();
+       double SSerr = rms*rms*vectorVoxel.GetSize();
+       double sumSquared = 0.0;
+       double sum = 0.0;
+       for (unsigned int i=0; i < vectorVoxel.GetSize(); ++i){
+         sum += vectorVoxel[i];
+         sumSquared += (vectorVoxel[i]*vectorVoxel[i]);
+       }
+       double SStot = sumSquared - sum*sum/(double)vectorVoxel.GetSize();
+  
+       double rSquared = 1.0 - (SSerr / SStot);
+       rsqrIt.Set(rSquared);
+     }
+   }
   }
 
 
