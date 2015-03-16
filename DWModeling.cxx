@@ -391,6 +391,11 @@ int main( int argc, char * argv[])
   typedef itk::ImageRegionConstIterator<MaskVolumeType> MaskVolumeIteratorType;
   typedef itk::ImageRegionIterator<MapVolumeType> MapVolumeIteratorType;
   
+  if(bValuesToInclude.size() and bValuesToExclude.size()){
+    std::cerr << "ERROR: Either inclusion or exclusion b-values list can be specified, not both!" << std::endl;
+    return -1;
+  }
+
   //Read VectorVolume
   VectorVolumeReaderType::Pointer multiVolumeReader 
     = VectorVolumeReaderType::New();
@@ -419,21 +424,61 @@ int main( int argc, char * argv[])
 
   // Trigger times
   std::vector<float> bValues;
-  float *bValuesPtr;
-  try
-    {
+  // list of b-values to be passed to the optimizer
+  float *bValuesPtr, *imageValuesPtr;
+  // "true" for the b-value and measurement pair to be used in fitting
+  bool *bValuesMask;
+  int bValuesTotal, bValuesSelected;
+  try {
+
     bValues = GetBvalues(inputVectorVolume->GetMetaDataDictionary());
-    bValuesPtr = new float[bValues.size()];
-    for(int i=0;i<bValues.size();i++)
-      bValuesPtr[i] = bValues[i];
+    bValuesTotal = bValues.size();
+    bValuesMask = new bool[bValuesTotal];
+
+
+    // if the inclusion list is non-empty, use only the values requested by the
+    // user
+    if(bValuesToInclude.size()){
+      memset(bValuesMask,false,sizeof(bool));
+      bValuesSelected = 0;
+      for(int i=0;i<bValuesTotal;i++){
+        if(std::find(bValuesToInclude.begin(), bValuesToInclude.end(), bValues[i]) 
+            != bValuesToInclude.end()){
+          bValuesMask[i] = true;
+          bValuesSelected++;
+        }
+      }
+    // if the exclusion list is non-empty, do not use the values requested by the
+    // user
+    } else if(bValuesToExclude.size()) {
+      memset(bValuesMask,true,sizeof(bool));
+      bValuesSelected = bValuesTotal;
+      for(int i=0;i<bValuesTotal;i++){
+        if(std::find(bValuesToExclude.begin(), bValuesToExclude.end(), bValues[i]) 
+            != bValuesToExclude.end()){
+          bValuesMask[i] = false;
+          bValuesSelected--;
+        }
+      }
+    } else {
+      // by default, all b-values will be used
+      memset(bValuesMask,true,sizeof(bool));
+      bValuesSelected = bValuesTotal;
     }
-  catch (itk::ExceptionObject &exc)
-    {
+
+    bValuesPtr = new float[bValuesSelected];
+    imageValuesPtr = new float[bValuesSelected];
+    for(int i=0;i<bValues.size();i++){
+      static int j=0;
+      if(bValuesMask[i])
+        bValuesPtr[j++] = bValues[i];
+    }
+  } catch (itk::ExceptionObject &exc) {
     itkGenericExceptionMacro(<< exc.GetDescription() 
             << " Image " << imageName 
             << " does not contain sufficient attributes to support algorithms.");
     return EXIT_FAILURE;
-    }
+  }
 
   MapVolumeType::Pointer slowDiffMap = MapVolumeType::New();
   slowDiffMap->SetRegions(maskVolume->GetLargestPossibleRegion());
@@ -504,8 +549,17 @@ int main( int argc, char * argv[])
 
       if(mvIt.Get() && vectorVoxel[0]){
         //cnt++;
-        costFunction->SetX(bValuesPtr, numValues);
-        costFunction->SetY(const_cast<float*>(vectorVoxel.GetDataPointer()),numValues);
+
+        // use only those values that were requested by the user
+        costFunction->SetX(bValuesPtr, bValuesSelected);
+        const float* imageVector = const_cast<float*>(vectorVoxel.GetDataPointer());
+        for(int i=0;i<bValuesTotal;i++){
+          static int j = 0;
+          if(bValuesMask[i])
+            imageValuesPtr[j++] = imageVector[i];
+        }
+
+        costFunction->SetY(imageValuesPtr,bValuesSelected);
 
         initialValue[0] = vectorVoxel[0];
         MultiExpDecayCostFunction::MeasureType temp = costFunction->GetValue(initialValue);
@@ -530,7 +584,10 @@ int main( int argc, char * argv[])
 
        itk::LevenbergMarquardtOptimizer::ParametersType finalPosition;
 
-       if(filterFitOutliers){
+       // Disabled for now: need to adjust this to work with selected b-values,
+       // and the benefit is also questionable, needs more work to evaluate.
+       //if(filterFitOutliers){
+       if(0){
           // Assume outlier is a point that has a residual error that 
           // deviates more than 3 SDs from the mean residual.
           // If outliers are present, fit the data agin after ignoring

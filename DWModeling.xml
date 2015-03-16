@@ -21,10 +21,17 @@
     </image>
 
     <integer-vector>
-      <name>framesMask</name>
-      <label>Frames mask</label>
-      <longflag>framesMask</longflag>
-      <description>List of integers. Length of the list should be the same as the number of B-values. Non-zero value of the item in the list means the particular value should be included in the fitting procedure. </description>
+      <name>bValuesToInclude</name>
+      <label>B-values to include</label>
+      <longflag>bvalInclude</longflag>
+      <description>List of integers corresponding to the b-values that should be included in fitting data. Note that only one of the two lists (inlusion or exclusion) should be populated, or both can be empty, in which case all b-values will be used.</description>
+    </integer-vector>
+
+    <integer-vector>
+      <name>bValuesToExclude</name>
+      <label>B-values to include</label>
+      <longflag>bvalInclude</longflag>
+      <description>List of integers corresponding to the b-values that should be excluded from fitting data. Note that only one of the two lists (inlusion or exclusion) should be populated, or both can be empty, in which case all b-values will be used.</description>
     </integer-vector>
 
     <image type="dynamic-contrast-enhanced">
@@ -75,6 +82,7 @@
       <channel>output</channel>
     </image>
 
+    <!--
     <boolean>
       <name>filterFitOutliers</name>
       <longflag>filterFitOutliers</longflag>
@@ -83,6 +91,7 @@
       <channel>input</channel>
       <default>0</default>
     </boolean>
+    -->
 
     </parameters>
 </executable>
