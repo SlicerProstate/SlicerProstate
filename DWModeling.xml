@@ -30,7 +30,7 @@
 
     <integer-vector>
       <name>bValuesToExclude</name>
-      <label>B-values to include</label>
+      <label>B-values to exclude</label>
       <longflag>bvalExclude</longflag>
       <description>List of integers corresponding to the b-values that should be excluded from fitting data. Note that only one of the two lists (inlusion or exclusion) should be populated, or both can be empty, in which case all b-values will be used.</description>
       <default></default>
