@@ -435,11 +435,10 @@ int main( int argc, char * argv[])
     bValuesTotal = bValues.size();
     bValuesMask = new bool[bValuesTotal];
 
-
     // if the inclusion list is non-empty, use only the values requested by the
     // user
     if(bValuesToInclude.size()){
-      memset(bValuesMask,false,sizeof(bool));
+      memset(bValuesMask,false,sizeof(bool)*bValuesTotal);
       bValuesSelected = 0;
       for(int i=0;i<bValuesTotal;i++){
         if(std::find(bValuesToInclude.begin(), bValuesToInclude.end(), bValues[i]) 
@@ -451,7 +450,7 @@ int main( int argc, char * argv[])
     // if the exclusion list is non-empty, do not use the values requested by the
     // user
     } else if(bValuesToExclude.size()) {
-      memset(bValuesMask,true,sizeof(bool));
+      memset(bValuesMask,true,sizeof(bool)*bValuesTotal);
       bValuesSelected = bValuesTotal;
       for(int i=0;i<bValuesTotal;i++){
         if(std::find(bValuesToExclude.begin(), bValuesToExclude.end(), bValues[i]) 
@@ -462,18 +461,26 @@ int main( int argc, char * argv[])
       }
     } else {
       // by default, all b-values will be used
-      memset(bValuesMask,true,sizeof(bool));
       bValuesSelected = bValuesTotal;
+      memset(bValuesMask,true,sizeof(bool)*bValuesTotal);
+    }
+
+    if(bValuesSelected<2){
+      std::cerr << "ERROR: Less than 2 values selected, cannot do the fit!" << std::endl;
+      return -1;
     }
 
     bValuesPtr = new float[bValuesSelected];
     imageValuesPtr = new float[bValuesSelected];
-    for(int i=0;i<bValues.size();i++){
-      static int j=0;
-      std::cout << bValues[i] << ":" << bValuesMask[i] << std::endl;
-      if(bValuesMask[i])
+    int j = 0;
+    std::cout << "Will use the following b-values: ";
+    for(int i=0;i<bValuesTotal;i++){
+      if(bValuesMask[i]){
+        std::cout << bValues[i] << " ";
         bValuesPtr[j++] = bValues[i];
+      }
     }
+    std::cout << std::endl;
   } catch (itk::ExceptionObject &exc) {
     itkGenericExceptionMacro(<< exc.GetDescription() 
             << " Image " << imageName 
@@ -554,10 +561,11 @@ int main( int argc, char * argv[])
       // use only those values that were requested by the user
       costFunction->SetX(bValuesPtr, bValuesSelected);
       const float* imageVector = const_cast<float*>(vectorVoxel.GetDataPointer());
+      int j = 0;
       for(int i=0;i<bValuesTotal;i++){
-        static int j = 0;
-        if(bValuesMask[i])
+        if(bValuesMask[i]){
           imageValuesPtr[j++] = imageVector[i];
+        }
       }
 
       costFunction->SetY(imageValuesPtr,bValuesSelected);
