@@ -537,7 +537,6 @@ int main( int argc, char * argv[])
   MultiExpDecayCostFunction::Pointer costFunction = MultiExpDecayCostFunction::New();
   MultiExpDecayCostFunction::ParametersType initialValue = MultiExpDecayCostFunction::ParametersType(4);
   unsigned numValues = inputVectorVolume->GetNumberOfComponentsPerPixel();
-  costFunction->SetNumberOfValues(numValues);
 
   initialValue[0] = 5000; // use b0
   initialValue[1] = 0.7; 
@@ -567,6 +566,9 @@ int main( int argc, char * argv[])
           imageValuesPtr[j++] = imageVector[i];
         }
       }
+
+      int numberOfSelectedPoints = j;
+      costFunction->SetNumberOfValues(numberOfSelectedPoints);
 
       costFunction->SetY(imageValuesPtr,bValuesSelected);
 
