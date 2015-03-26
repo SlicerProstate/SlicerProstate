@@ -1,4 +1,6 @@
-# ProstateIGT
+# SlicerProstate
+
+This is work in progress, not yet ready for public use. No documentation is available yet.
 
 This repository contains a collection of tools to facilitate prostate cancer image-guided therapy applications. 
 
@@ -6,7 +8,7 @@ The specific applications of interest include annotation and analysis of multi-p
 
 ProstateIGT will be available to the users as an extension of 3D Slicer (http://slicer.org).
 
-Contact ...
+Contact: Andrey Fedorov fedorov@bwh.harvard.edu
 
 Funding ...
 
