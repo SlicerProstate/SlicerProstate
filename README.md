@@ -39,9 +39,14 @@ The following individuals and groups contributed directly to the development of 
 * Andras Lasso, Queen's University
 
 ## References
-[1] Fedorov A, Khallaghi S, Antonio Sánchez C, Lasso A, Fels S, Tuncali K, Neubauer Sugar E, Kapur T, Zhang C, Wells W, Nguyen PL, Abolmaesumi P, Tempany C. (2015) Open-source image registration for MRI–TRUS fusion-guided prostate
+
+If you use SlicerProstate in your work, you can acknowledge it by referencing
+the following publications. You can also use those to learn more about
+SlicerProstate functionality.
+
+1. Fedorov A, Khallaghi S, Antonio Sánchez C, Lasso A, Fels S, Tuncali K, Neubauer Sugar E, Kapur T, Zhang C, Wells W, Nguyen PL, Abolmaesumi P, Tempany C. (2015) Open-source image registration for MRI–TRUS fusion-guided prostate
 interventions. Int J CARS: 1–10. Available: http://link.springer.com/article/10.1007/s11548-015-1180-7. (see preprint PDF of the article [here](http://www.spl.harvard.edu/publications/item/view/2776)
-[2] Fedorov A, Nguyen PL, Tuncali K, Tempany C. (2015). Annotated MRI and ultrasound volume images of the prostate. Zenodo. http://doi.org/10.5281/zenodo.16396
+2. Fedorov A, Nguyen PL, Tuncali K, Tempany C. (2015). Annotated MRI and ultrasound volume images of the prostate. Zenodo. http://doi.org/10.5281/zenodo.16396
 
 ## Contact
 
