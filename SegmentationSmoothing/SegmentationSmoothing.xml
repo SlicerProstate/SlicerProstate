@@ -8,11 +8,11 @@
   </documentation-url>
   <license>Slicer</license>
   <contributor>Andrey Fedorov (BWH)</contributor>
-  <acknowledgements>
-  </acknowledgements>
+  <acknowledgements>This work supported in part the National Institutes of Health, National Cancer Institute through the following grants: Enabling technologies for MRI-guided prostate interventions (R01 CA111288, PI Tempany), The National Center for Image-Guided Therapy (P41 EB015898, PI Tempany) Quantitative Image Informatics for Cancer Research (QIICR) (U24 CA180918, PIs Kikinis and Fedorov)</acknowledgements>
   <parameters>
     <label>IO</label>
     <description><![CDATA[Input/output parameters]]></description>
+
     <image type="label">
       <name>inputImageName</name>
       <label>Input label</label>
@@ -20,6 +20,7 @@
       <index>0</index>
       <description><![CDATA[Input segmentation label]]></description>
     </image>
+
     <image type="label">
       <name>outputImageName</name>
       <label>Output label</label>
@@ -27,5 +28,16 @@
       <index>1</index>
       <description><![CDATA[Smoothed segmentation label]]></description>
     </image>
+
+    <integer>
+      <name>labelNumber</name>
+      <label>Label to process</label>
+      <channel>input</channel>
+      <longflag>label</longflag>
+      <flag>l</flag>
+      <default>-1</default>
+      <description><![CDATA[Label to smooth in the input label image. Default value of -1 will threshold the input image between 1 and 255 and will apply smoothing to the result.]]></description>
+    </integer>
+
   </parameters>
 </executable>

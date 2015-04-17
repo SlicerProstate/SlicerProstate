@@ -82,8 +82,13 @@ int main( int argc, char * argv[] )
   LabelThreshType::Pointer labelThresh = LabelThreshType::New();
   labelThresh->SetInput(resampler->GetOutput());
   labelThresh->SetInsideValue(1);
-  labelThresh->SetUpperThreshold(255);
-  labelThresh->SetLowerThreshold(1);
+  if(labelNumber==-1){
+    labelThresh->SetUpperThreshold(255);
+    labelThresh->SetLowerThreshold(1);
+  } else {
+    labelThresh->SetUpperThreshold(labelNumber);
+    labelThresh->SetLowerThreshold(labelNumber);
+  }
 
   try{
     labelThresh->Update();
