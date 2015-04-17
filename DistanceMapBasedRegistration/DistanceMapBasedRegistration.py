@@ -14,24 +14,26 @@ import sitkUtils
 class DistanceMapBasedRegistration(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-
-  This module is scripted and not CLI because we would like to use BRAINSFit, and that is easier to do from a scripted module.
   """
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Distance Map Based Registration" # TODO make this more human readable by adding spaces
+    self.parent.title = "Distance Map Based Registration"
     self.parent.categories = ["Registration.Label Registration"]
     self.parent.dependencies = ['SegmentationSmoothing','QuadEdgeSurfaceMesher']
-    self.parent.contributors = ["John Doe (AnyWare Corp.)"] # replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["Andrey Fedorov (BWH), Andras Lasso (Queen's University)"]
     self.parent.helpText = """
-    This is an example of scripted loadable module bundled in an extension.
-    It performs a simple thresholding on the input volume and optionally captures a screenshot.
+    This module performs distance-based image registration using segmentations 
+    of the structure of interest. The structure should be segmented in both fixed and moving images.
+    The actual moving and fixed images are optional, and if available will be 
+    used to generate registered image and visualize the results.
+    See <a href=http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Modules/DistanceMapBasedRegistration>
+    online documentation</a> for details.
     """
     self.parent.acknowledgementText = """
-    This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
-    and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-""" # replace with organization, grant and thanks.
+    Development of this module was supported in part by NIH through grants
+    R01 CA111288, P41 RR019703 and U24 CA180918.
+    """
 
 #
 # DistanceMapBasedRegistrationWidget
@@ -65,11 +67,11 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     self.fixedImageSelector.selectNodeUponCreation = True
     self.fixedImageSelector.addEnabled = False
     self.fixedImageSelector.removeEnabled = False
-    self.fixedImageSelector.noneEnabled = False
+    self.fixedImageSelector.noneEnabled = True
     self.fixedImageSelector.showHidden = False
     self.fixedImageSelector.showChildNodeTypes = False
     self.fixedImageSelector.setMRMLScene( slicer.mrmlScene )
-    self.fixedImageSelector.setToolTip( "Fixed image" )
+    self.fixedImageSelector.setToolTip( "Fixed image (optional)" )
     parametersFormLayout.addRow("Fixed Image: ", self.fixedImageSelector)
 
     #
@@ -96,11 +98,11 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     self.movingImageSelector.selectNodeUponCreation = True
     self.movingImageSelector.addEnabled = False
     self.movingImageSelector.removeEnabled = False
-    self.movingImageSelector.noneEnabled = False
+    self.movingImageSelector.noneEnabled = True
     self.movingImageSelector.showHidden = False
     self.movingImageSelector.showChildNodeTypes = False
     self.movingImageSelector.setMRMLScene( slicer.mrmlScene )
-    self.movingImageSelector.setToolTip( "Moving image" )
+    self.movingImageSelector.setToolTip( "Moving image (optional)" )
     parametersFormLayout.addRow("Moving Image: ", self.movingImageSelector)
 
     #
@@ -154,6 +156,7 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     #
     # registered volume selector
     #
+    '''
     self.outputImageSelector = slicer.qMRMLNodeComboBox()
     self.outputImageSelector.nodeTypes = ( ("vtkMRMLScalarVolumeNode"), "" )
     # self.outputImageSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", 1 )
@@ -165,8 +168,9 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     self.outputImageSelector.showChildNodeTypes = False
     self.outputImageSelector.baseName = 'Registered Volume'
     self.outputImageSelector.setMRMLScene( slicer.mrmlScene )
-    self.outputImageSelector.setToolTip( "Registered volume" )
+    self.outputImageSelector.setToolTip( "Registered volume (will be generated only if the moving image was provided)" )
     parametersFormLayout.addRow("Registered Volume: ", self.outputImageSelector)
+    '''
 
     #
     # To be added later: advanced parameters
@@ -177,42 +181,20 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     # command line
     #
 
-    self.visualizationCheckbox = qt.QCheckBox()
-    parametersFormLayout.addRow("Visualize results:",self.visualizationCheckbox)
-
-    groupLabel = qt.QLabel('Visualization mode:')
     self.registrationModeGroup = qt.QButtonGroup()
-    self.noRegistrationRadio = qt.QRadioButton('No registration')
-    self.linearRegistrationRadio = qt.QRadioButton('Linear registration')
-    self.deformableRegistrationRadio = qt.QRadioButton('Deformable registration')
+    self.noRegistrationRadio = qt.QRadioButton('Before registration')
+    self.linearRegistrationRadio = qt.QRadioButton('After linear registration')
+    self.deformableRegistrationRadio = qt.QRadioButton('After deformable registration')
     self.noRegistrationRadio.setChecked(1)
     self.registrationModeGroup.addButton(self.noRegistrationRadio,1)
     self.registrationModeGroup.addButton(self.linearRegistrationRadio,2)
     self.registrationModeGroup.addButton(self.deformableRegistrationRadio,3)
-    parametersFormLayout.addRow(qt.QLabel("Visualization mode"))
+    parametersFormLayout.addRow(qt.QLabel("Visualization"))
     parametersFormLayout.addRow("",self.noRegistrationRadio)
     parametersFormLayout.addRow("",self.linearRegistrationRadio)
     parametersFormLayout.addRow("",self.deformableRegistrationRadio)
 
     self.registrationModeGroup.connect('buttonClicked(int)',self.onVisualizationModeClicked)
-
-    '''
-    self.imageThresholdSliderWidget = ctk.ctkSliderWidget()
-    self.imageThresholdSliderWidget.singleStep = 0.1
-    self.imageThresholdSliderWidget.minimum = -100
-    self.imageThresholdSliderWidget.maximum = 100
-    self.imageThresholdSliderWidget.value = 0.5
-    self.imageThresholdSliderWidget.setToolTip("Set threshold value for computing the output image. Voxels that have intensities lower than this value will set to zero.")
-    parametersFormLayout.addRow("Image threshold", self.imageThresholdSliderWidget)
-
-    #
-    # check box to trigger taking screen shots for later use in tutorials
-    #
-    self.enableScreenshotsFlagCheckBox = qt.QCheckBox()
-    self.enableScreenshotsFlagCheckBox.checked = 0
-    self.enableScreenshotsFlagCheckBox.setToolTip("If checked, take screen shots for tutorials. Use Save Data to write them to disk.")
-    parametersFormLayout.addRow("Enable Screenshots", self.enableScreenshotsFlagCheckBox)
-    '''
 
     #
     # Apply Button
@@ -224,14 +206,14 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
 
     # connections
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
-    #self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-    #self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 
     # Add vertical spacer
     self.layout.addStretch(1)
 
     # Refresh Apply button state
     #self.onSelect()
+
+    self.parameterNode = slicer.vtkMRMLScriptedModuleNode()
 
     '''
     TODO:
@@ -249,16 +231,23 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
 
   def onApplyButton(self):
     logic = DistanceMapBasedRegistrationLogic()
-    self.parameterNode = slicer.vtkMRMLScriptedModuleNode()
 
-    # TODO: add checks for the selectors' content
-    self.parameterNode.SetAttribute('FixedImageNodeID', self.fixedImageSelector.currentNode().GetID())
-    self.parameterNode.SetAttribute('FixedLabelNodeID', self.fixedImageLabelSelector.currentNode().GetID())
-    self.parameterNode.SetAttribute('MovingImageNodeID', self.movingImageSelector.currentNode().GetID())
-    self.parameterNode.SetAttribute('MovingLabelNodeID', self.movingImageLabelSelector.currentNode().GetID())
-    self.parameterNode.SetAttribute('OutputVolumeNodeID', self.outputImageSelector.currentNode().GetID())
-    self.parameterNode.SetAttribute('AffineTransformNodeID', self.affineTransformSelector.currentNode().GetID())
-    self.parameterNode.SetAttribute('BSplineTransformNodeID', self.bsplineTransformSelector.currentNode().GetID())
+    if self.fixedImageSelector.currentNode():
+      self.parameterNode.SetAttribute('FixedImageNodeID', self.fixedImageSelector.currentNode().GetID())
+    if self.fixedImageLabelSelector.currentNode():
+      self.parameterNode.SetAttribute('FixedLabelNodeID', self.fixedImageLabelSelector.currentNode().GetID())
+    if self.movingImageSelector.currentNode():
+      self.parameterNode.SetAttribute('MovingImageNodeID', self.movingImageSelector.currentNode().GetID())
+    if self.movingImageLabelSelector.currentNode():
+      self.parameterNode.SetAttribute('MovingLabelNodeID', self.movingImageLabelSelector.currentNode().GetID())
+    '''
+    if self.outputImageSelector.currentNode():
+      self.parameterNode.SetAttribute('OutputVolumeNodeID', self.outputImageSelector.currentNode().GetID())
+    '''
+    if self.affineTransformSelector.currentNode():
+      self.parameterNode.SetAttribute('AffineTransformNodeID', self.affineTransformSelector.currentNode().GetID())
+    if self.bsplineTransformSelector.currentNode():
+      self.parameterNode.SetAttribute('BSplineTransformNodeID', self.bsplineTransformSelector.currentNode().GetID())
     logic.run(self.parameterNode)
 
     # resample moving volume
@@ -272,7 +261,12 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     return
 
   def onVisualizationModeClicked(self,mode):
-    movingVolume = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('MovingImageNodeID'))
+
+    if self.parameterNode.GetAttribute('MovingImageNodeID'):
+      movingVolume = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('MovingImageNodeID'))
+    else:
+      movingVolume = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('MovingLabelDistanceMapID'))
+
     movingSurface = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('MovingLabelSurfaceID'))
 
     affineTransform = slicer.mrmlScene.GetNodeByID(self.parameterNode.GetAttribute('AffineTransformNodeID'))
@@ -405,10 +399,17 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
 
     self.makeSurfaceModels(parameterNode)
 
+    print('Surface name:'+parameterNode.GetAttribute('MovingLabelSurfaceID'))
+
     volumesLogic = slicer.modules.volumes.logic()
-    movingImageCloneID = parameterNode.GetAttribute('MovingImageCloneID')
     movingImageID = parameterNode.GetAttribute('MovingImageNodeID')
+    if not movingImageID:
+      movingImageID = parameterNode.GetAttribute('MovingLabelDistanceMapID')
+
     fixedImageID = parameterNode.GetAttribute('FixedImageNodeID')
+    if not fixedImageID:
+      fixedImageID = parameterNode.GetAttribute('FixedLabelDistanceMapID')
+
     movingImageNode = slicer.mrmlScene.GetNodeByID(movingImageID)
 
     # display intersection of the fixed label surface in all slices
@@ -418,6 +419,7 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     modelDisplayNode.SetSliceIntersectionVisibility(1)
     modelDisplayNode.SetSliceIntersectionThickness(3)
 
+    movingImageCloneID = parameterNode.GetAttribute('MovingImageCloneID')
     if movingImageCloneID:
       slicer.mrmlScene.RemoveNode(slicer.mrmlScene.GetNodeByID(movingImageCloneID))
     
@@ -446,29 +448,40 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     # enable transform visualization in-slice and 3d
 
   def makeSurfaceModels(self,parameterNode):
-    fixedModel = slicer.vtkMRMLModelNode()
-    slicer.mrmlScene.AddNode(fixedModel)
+    fixedLabel = slicer.util.getNode(parameterNode.GetAttribute('FixedLabelNodeID'))
+    movingLabel = slicer.util.getNode(parameterNode.GetAttribute('MovingLabelNodeID'))
+
+    fixedModelID = parameterNode.GetAttribute('FixedLabelSurfaceID')
+    if fixedModelID:
+      fixedModel = slicer.util.getNode(fixedModelID)
+      print('Reusing existing model: '+fixedModelID+' '+fixedModelID.GetName())
+    else:
+      fixedModel = slicer.vtkMRMLModelNode()
+      slicer.mrmlScene.AddNode(fixedModel)
+      fixedModel.SetName(fixedLabel.GetName()+'-surface')
+      parameterNode.SetAttribute('FixedLabelSurfaceID',fixedModel.GetID())
+      print('Created a new model: '+fixedModel.GetID()+' '+fixedModel.GetName())
+
     parameters = {'inputImageName':parameterNode.GetAttribute('FixedLabelSmoothedID'),'outputMeshName':fixedModel.GetID()}
     slicer.cli.run(slicer.modules.quadedgesurfacemesher,None,parameters,wait_for_completion=True)
-    parameterNode.SetAttribute('FixedLabelSurfaceID',fixedModel.GetID())
     fixedModel.GetDisplayNode().SetColor(0.9,0.9,0)
 
-    movingModel = slicer.vtkMRMLModelNode()
-    slicer.mrmlScene.AddNode(movingModel)
+    movingModelID = parameterNode.GetAttribute('MovingLabelSurfaceID')
+    if movingModelID:
+      movingModel = slicer.util.getNode(movingModelID)
+      print('Reusing existing model: '+movingModelID+' '+movingModelID.GetName())
+    else:      
+      movingModel = slicer.vtkMRMLModelNode()
+      slicer.mrmlScene.AddNode(movingModel)
+      movingModel.SetName(movingLabel.GetName()+'-surface')
+      parameterNode.SetAttribute('MovingLabelSurfaceID',movingModel.GetID())
+      print('Created a new model: '+movingModel.GetID()+' '+movingModel.GetName())
+
     parameters = {'inputImageName':parameterNode.GetAttribute('MovingLabelSmoothedID'),'outputMeshName':movingModel.GetID()}
     slicer.cli.run(slicer.modules.quadedgesurfacemesher,None,parameters,wait_for_completion=True)
-    parameterNode.SetAttribute('MovingLabelSurfaceID',movingModel.GetID())
-    movingModel.GetDisplayNode().SetColor(0,0.9,0.9)
+    movingModel.GetDisplayNode().SetColor(0,0.7,0.9)
 
     return
-
-  def resample(self,parameterNode):
-    resampleParameters = {'fixedVolume':fixedLabelDistanceMap.GetID(), 'movingVolume':movingLabelDistanceMap.GetID(),'useRigid':True,'useAffine':True,'numberOfSamples':'10000','costMetric':'MSE','outputTransform':affineTransformNode.GetID()}
-    slicer.cli.run(slicer.modules.brainsfit, None, registrationParameters, wait_for_completion=True)
-
-    parameterNode.SetAttribute('AffineTransformNodeID',affineTransformNode.GetID())
-
-
 
   def getBoundingBox(self,fixedLabelNodeID,movingLabelNodeID):
 
