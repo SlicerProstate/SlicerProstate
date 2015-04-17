@@ -1,15 +1,15 @@
 cmake_minimum_required(VERSION 2.8.9)
 
-project(ProstateIGT)
+project(SlicerProstate)
 
 #-----------------------------------------------------------------------------
 # Extension meta-information
-set(EXTENSION_HOMEPAGE "http://www.example.com/Slicer/Extensions/ProstateIGT")
-set(EXTENSION_CATEGORY "IGT")
-set(EXTENSION_CONTRIBUTORS "Andrey Fedorov (BWH)")
-set(EXTENSION_DESCRIPTION "This is a collection of modules in support of prostate image guided therapy clinical research.")
-set(EXTENSION_ICONURL "http://www.example.com/Slicer/Extensions/ProstateIGT.png")
-set(EXTENSION_SCREENSHOTURLS "http://www.example.com/Slicer/Extensions/ProstateIGT/Screenshots/1.png")
+set(EXTENSION_HOMEPAGE "http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/SlicerProstate")
+set(EXTENSION_CATEGORY "Applications")
+set(EXTENSION_CONTRIBUTORS "Andrey Fedorov (Brigham and Women's Hospital), Andras Lasso (Queen's University)")
+set(EXTENSION_DESCRIPTION "SlicerProstate extension hosts various modules to facilitate processing and management of prostate image data, utilizing prostate images in image-guided interventions and development of the imaging biomarkers of the prostate cancer.")
+set(EXTENSION_ICONURL "http://wiki.slicer.org/slicerWiki/images/8/87/SlicerProstate_Logo_1.0_128x128.png")
+set(EXTENSION_SCREENSHOTURLS "http://wiki.slicer.org/slicerWiki/images/f/ff/DistanceMapBasedRegistration_example1.png http://wiki.slicer.org/slicerWiki/images/3/36/SegmentationSmoothing_example1.png http://wiki.slicer.org/slicerWiki/images/c/c3/QuadEdgeSurfaceMesher_example1.png")
 
 #-----------------------------------------------------------------------------
 # Extension dependencies
