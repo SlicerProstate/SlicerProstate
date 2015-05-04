@@ -201,28 +201,94 @@ private:
         
 };
 
-class MultiExpDecayCostFunction: public itk::MultipleValuedCostFunction
+class DecayCostFunction: public itk::MultipleValuedCostFunction
 {
 public:
-  typedef MultiExpDecayCostFunction                    Self;
+  typedef DecayCostFunction                    Self;
   typedef itk::MultipleValuedCostFunction   Superclass;
   typedef itk::SmartPointer<Self>           Pointer;
   typedef itk::SmartPointer<const Self>     ConstPointer;
   itkNewMacro( Self );
         
-  enum { SpaceDimension =  3 };
-  unsigned int RangeDimension; 
-
   typedef Superclass::ParametersType              ParametersType;
   typedef Superclass::DerivativeType              DerivativeType;
   typedef Superclass::MeasureType                 MeasureType, ArrayType;
   typedef Superclass::ParametersValueType         ValueType;
-		      
-        
-  MultiExpDecayCostFunction()
+
+  enum Model {
+    MonoExponential = 0,
+    BiExponential = 1,
+    Kurtosis = 2
+  };
+
+  enum { SpaceDimension =  3 };
+
+  DecayCostFunction()
   {
+    modelType = BiExponential;
   }
-        
+
+  void SetModelType(Model mt){
+    modelType = mt;
+    switch(modelType){
+    case BiExponential:
+      // initialize initial parameters
+      initialValue = ParametersType(4);
+      initialValue[0] = 0; // set to b0!
+      initialValue[1] = 0.7;
+      initialValue[2] = 0.00025;
+      initialValue[3] = 0.002;
+
+      // initialize parameter meaning (store this in NRRD? save units?)
+      parametersMeaning.clear();
+      parametersMeaning.push_back("Scale");
+      parametersMeaning.push_back("Fast diffusion fraction");
+      parametersMeaning.push_back("Slow diffusion coefficient");
+      parametersMeaning.push_back("Fast diffusion coefficient");
+
+      break;
+    case Kurtosis:
+      // initialize initial parameters
+      initialValue = ParametersType(3);
+      initialValue[0] = 0; // set to b0!
+      initialValue[1] = 1;
+      initialValue[2] = 0.0015;
+
+      // initialize parameter meaning (store this in NRRD? save units?)
+      parametersMeaning.clear();
+      parametersMeaning.push_back("Scale");
+      parametersMeaning.push_back("Kurtosis");
+      parametersMeaning.push_back("Kurtosis diffusion");
+
+      break;
+    case MonoExponential:
+      initialValue = ParametersType(2);
+      initialValue[0] = 0;
+      initialValue[1] = 0.0015;
+
+      // initialize parameter meaning (store this in NRRD? save units?)
+      parametersMeaning.clear();
+      parametersMeaning.push_back("Scale");
+      parametersMeaning.push_back("ADC");
+
+      break;
+    default:
+      abort(); // not implemented!
+    }
+  }
+
+ ParametersType GetInitialValue(){
+   return initialValue;
+ }
+
+  void SetInitialValues(ParametersType initialParameters){
+    // TODO: add model-specific checks
+    if(initialParameters.size() != initialValue.size())
+      return;
+    for(int i=0;i<initialValue.size();i++)
+      initialValue[i] = initialParameters[i];
+  }
+
   void SetY (const float* y, int sz) //Self signal Y
   {    
     Y.set_size (sz);
@@ -251,29 +317,83 @@ public:
   {
     MeasureType measure(RangeDimension);
 
-    float scale = parameters[0],
+    switch(modelType){
+    case BiExponential:{
+      float scale = parameters[0],
           fraction = parameters[1],
           slowDiff = parameters[2],
           fastDiff = parameters[3];
 
-    for(int i=0;i<measure.size();i++)
-      {
-      measure[i] = 
-        scale*((1-fraction)*exp(-1.*X[i]*slowDiff)+fraction*exp(-1.*X[i]*fastDiff));
+      for(int i=0;i<measure.size();i++)
+        {
+        measure[i] =
+          scale*((1-fraction)*exp(-1.*X[i]*slowDiff)+fraction*exp(-1.*X[i]*fastDiff));
+        }
+      break;
+    }
+    case Kurtosis:{
+      float scale = parameters[0],
+          kurtosis = parameters[1],
+          kurtosisDiff = parameters[2]; //TK
+
+      for(int i=0;i<measure.size();i++)
+        {
+        measure[i] =
+          scale*(exp(-1.*X[i]*kurtosisDiff+((X[i]*X[i])*(kurtosisDiff*kurtosisDiff)*kurtosis/6))); //TK
+        }
+      break;
       }
+    case MonoExponential:{
+      float scale = parameters[0],
+          adc = parameters[1];
+
+      for(int i=0;i<measure.size();i++)
+        {
+        measure[i] =
+          scale*exp(-1.*X[i]*adc);
+        }
+      break;
+    }
+    default:
+      abort();
+    }
+
     return measure;
   }
 
   float GetFittedValue(const ParametersType & parameters, float x) const
   {
-    float scale = parameters[0],
+    float measure;
+    switch(modelType){
+    case BiExponential:{
+      float scale = parameters[0],
           fraction = parameters[1],
           slowDiff = parameters[2],
           fastDiff = parameters[3];
 
-      float measure = 
+      measure =
         scale*((1-fraction)*exp(-1.*x*slowDiff)+fraction*exp(-1.*x*fastDiff));
-      
+      break;
+    }
+    case Kurtosis:{
+      float scale = parameters[0],
+          kurtosis = parameters[1],
+          kurtosisDiff = parameters[2];
+      measure =
+        scale*(exp(-1.*x*kurtosisDiff+((x*x)*(kurtosisDiff*kurtosisDiff)*kurtosis/6)));
+      break;
+    }
+    case MonoExponential:{
+      float scale = parameters[0],
+          adc = parameters[1];
+      measure =
+          scale*exp(-1.*x*adc);
+      break;
+    }
+    default:
+      abort();
+    }
+
     return measure;
   }
 
@@ -281,16 +401,46 @@ public:
   {
     MeasureType measure(RangeDimension);
 
-    float scale = parameters[0],
+    switch(modelType){
+    case BiExponential:{
+      float scale = parameters[0],
           fraction = parameters[1],
           slowDiff = parameters[2],
           fastDiff = parameters[3];
 
-    for(int i=0;i<measure.size();i++)
-      {
-      measure[i] = 
-        Y[i]-scale*((1-fraction)*exp(-1.*X[i]*slowDiff)+fraction*exp(-1.*X[i]*fastDiff));
-      }
+      for(int i=0;i<measure.size();i++)
+        {
+        measure[i] =
+          Y[i]-scale*((1-fraction)*exp(-1.*X[i]*slowDiff)+fraction*exp(-1.*X[i]*fastDiff));
+        }
+      break;
+    }
+    case Kurtosis:{
+      float scale = parameters[0],
+          kurtosis = parameters[1],
+          kurtosisDiff = parameters[2];
+
+      for(int i=0;i<measure.size();i++)
+        {
+        measure[i] =
+          Y[i]-scale*(exp(-1.*X[i]*kurtosisDiff+((X[i]*X[i])*(kurtosisDiff*kurtosisDiff)*kurtosis/6)));
+        }
+      break;
+    }
+    case MonoExponential:{
+      float scale = parameters[0],
+          adc = parameters[1];
+
+      for(int i=0;i<measure.size();i++)
+        {
+        measure[i] =
+          Y[i]-scale*exp(-1.*X[i]*adc);
+        }
+      break;
+    }
+    default:
+      abort(); // not implemented
+    }
            
     return measure; 
   }
@@ -303,7 +453,12 @@ public:
         
   unsigned int GetNumberOfParameters(void) const
   {
-    return 4;
+    switch(modelType){
+    case MonoExponential: return 2;
+    case BiExponential: return 4;
+    case Kurtosis: return 3;
+    default: return 0; // should never get here
+    }
   }
        
   void SetNumberOfValues(unsigned int nValues)
@@ -315,23 +470,21 @@ public:
   {
     return RangeDimension;
   }
+
+  Model GetModelType() const {
+    return modelType;
+  }
         
 protected:
-  virtual ~MultiExpDecayCostFunction(){}
+  virtual ~DecayCostFunction(){}
 private:
         
   ArrayType X, Y;
-        
-  ArrayType Exponential(ArrayType X) const
-  {
-    ArrayType Z;
-    Z.set_size(X.size());
-    for (unsigned int i=0; i<X.size(); i++)
-      {
-      Z[i] = exp(X(i));
-      }
-    return Z;
-  };
+
+  unsigned int RangeDimension;
+  Model modelType;
+  ParametersType initialValue;
+  std::vector<std::string> parametersMeaning;
         
   int constraintFunc(ValueType x) const
   {
@@ -360,6 +513,38 @@ void OnlineVariance(itk::MultipleValuedCostFunction::MeasureType &values,
   SD = sqrt(M2/(n-1));
 }
 
+
+const   unsigned int VectorVolumeDimension = 3;
+typedef float                                                 VectorVolumePixelType;
+typedef itk::VectorImage<VectorVolumePixelType, VectorVolumeDimension> VectorVolumeType;
+typedef VectorVolumeType::RegionType              VectorVolumeRegionType;
+typedef itk::ImageFileReader<VectorVolumeType>             VectorVolumeReaderType;
+
+typedef unsigned char                                        MaskVolumePixelType;
+typedef float                                                MapVolumePixelType;
+typedef itk::Image<MaskVolumePixelType, 3>                   MaskVolumeType;
+typedef itk::Image<MapVolumePixelType, 3>                    MapVolumeType;
+typedef itk::ImageFileReader<MaskVolumeType>                 MaskVolumeReaderType;
+typedef itk::ImageFileWriter<MapVolumeType>                  MapWriterType;
+typedef itk::ImageFileWriter<VectorVolumeType>               FittedVolumeWriterType;
+
+typedef itk::Image<float,VectorVolumeDimension> OutputVolumeType;
+typedef itk::ImageDuplicator<VectorVolumeType> DuplicatorType;
+typedef itk::ImageFileWriter< MapVolumeType> MapVolumeWriterType;
+
+typedef itk::ImageRegionConstIterator<VectorVolumeType> InputVectorVolumeIteratorType;
+typedef itk::ImageRegionIterator<VectorVolumeType> OutputVectorVolumeIteratorType;
+typedef itk::ImageRegionConstIterator<MaskVolumeType> MaskVolumeIteratorType;
+typedef itk::ImageRegionIterator<MapVolumeType> MapVolumeIteratorType;
+
+void SaveMap(MapVolumeType::Pointer map, std::string fileName){
+  MapWriterType::Pointer writer = MapWriterType::New();
+  writer->SetInput(map);
+  writer->SetFileName(fileName.c_str());
+  writer->SetUseCompression(1);
+  writer->Update();
+}
+
 // Use an anonymous namespace to keep class types and function names
 // from colliding when module is used as shared object module.  Every
 // thing should be in an anonymous namespace except for the module
@@ -369,28 +554,6 @@ int main( int argc, char * argv[])
 {
   PARSE_ARGS;
 
-  const   unsigned int VectorVolumeDimension = 3;
-  typedef float                                                 VectorVolumePixelType;
-  typedef itk::VectorImage<VectorVolumePixelType, VectorVolumeDimension> VectorVolumeType;
-  typedef VectorVolumeType::RegionType              VectorVolumeRegionType;
-  typedef itk::ImageFileReader<VectorVolumeType>             VectorVolumeReaderType;
-
-  typedef unsigned char                                        MaskVolumePixelType;
-  typedef float                                                MapVolumePixelType;
-  typedef itk::Image<MaskVolumePixelType, 3>                   MaskVolumeType;
-  typedef itk::Image<MapVolumePixelType, 3>                    MapVolumeType;
-  typedef itk::ImageFileReader<MaskVolumeType>                 MaskVolumeReaderType;
-  typedef itk::ImageFileWriter<MapVolumeType>                  MapWriterType;
-  typedef itk::ImageFileWriter<VectorVolumeType>               FittedVolumeWriterType;
-
-  typedef itk::Image<float,VectorVolumeDimension> OutputVolumeType;
-  typedef itk::ImageDuplicator<VectorVolumeType> DuplicatorType;
-  typedef itk::ImageFileWriter< MapVolumeType> MapVolumeWriterType;
-
-  typedef itk::ImageRegionIterator<VectorVolumeType> VectorVolumeIteratorType;
-  typedef itk::ImageRegionConstIterator<MaskVolumeType> MaskVolumeIteratorType;
-  typedef itk::ImageRegionIterator<MapVolumeType> MapVolumeIteratorType;
-  
   if(bValuesToInclude.size() and bValuesToExclude.size()){
     std::cerr << "ERROR: Either inclusion or exclusion b-values list can be specified, not both!" << std::endl;
     return -1;
@@ -488,27 +651,41 @@ int main( int argc, char * argv[])
     return EXIT_FAILURE;
   }
 
-  MapVolumeType::Pointer slowDiffMap = MapVolumeType::New();
-  slowDiffMap->SetRegions(maskVolume->GetLargestPossibleRegion());
-  slowDiffMap->Allocate();
-  slowDiffMap->FillBuffer(0);
-  slowDiffMap->CopyInformation(maskVolume);
-  slowDiffMap->FillBuffer(0);
+  // allocate output maps
+  DecayCostFunction::Model modelType;
+  std::vector<MapVolumeType::Pointer> parameterMapVector;
+  std::vector<MapVolumeIteratorType> parameterMapItVector;
 
-  MapVolumeType::Pointer fastDiffMap = MapVolumeType::New();
-  fastDiffMap->SetRegions(maskVolume->GetLargestPossibleRegion());
-  fastDiffMap->Allocate();
-  fastDiffMap->FillBuffer(0);
-  fastDiffMap->CopyInformation(maskVolume);
-  fastDiffMap->FillBuffer(0);
+  if(modelName == "BiExponential")
+    modelType = DecayCostFunction::BiExponential;
+  else if(modelName == "MonoExponential")
+    modelType = DecayCostFunction::MonoExponential;
+  else if(modelName == "Kurtosis")
+    modelType = DecayCostFunction::Kurtosis;
+  else {
+    std::cerr << "ERROR: Unknown model type specified!" << std::endl;
+    return -1;
+  }
 
-  MapVolumeType::Pointer fastDiffFractionMap = MapVolumeType::New();
-  fastDiffFractionMap->SetRegions(maskVolume->GetLargestPossibleRegion());
-  fastDiffFractionMap->Allocate();
-  fastDiffFractionMap->FillBuffer(0);
-  fastDiffFractionMap->CopyInformation(maskVolume);
-  fastDiffFractionMap->FillBuffer(0);
+  DecayCostFunction::Pointer costFunction = DecayCostFunction::New();
+  costFunction->SetModelType(modelType);
 
+  parameterMapVector.resize(costFunction->GetNumberOfParameters());
+  for(int i=0;i<costFunction->GetNumberOfParameters();i++){
+    parameterMapVector[i] = MapVolumeType::New();
+    parameterMapVector[i]->SetRegions(maskVolume->GetLargestPossibleRegion());
+    parameterMapVector[i]->Allocate();
+    parameterMapVector[i]->FillBuffer(0);
+    // note mask is initialized even if not passed by the user
+    parameterMapVector[i]->CopyInformation(maskVolume);
+    parameterMapVector[i]->FillBuffer(0);
+
+    parameterMapItVector.push_back(
+          MapVolumeIteratorType(parameterMapVector[i],parameterMapVector[i]->GetLargestPossibleRegion()));
+    parameterMapItVector[i].GoToBegin();
+  }
+
+  // R^2 and fitted values volumes are calculated independently of the model
   MapVolumeType::Pointer rsqrMap = MapVolumeType::New();
   rsqrMap->SetRegions(maskVolume->GetLargestPossibleRegion());
   rsqrMap->Allocate();
@@ -525,34 +702,24 @@ int main( int argc, char * argv[])
     zero[i] = 0;
   fittedVolume->FillBuffer(zero);
 
-  VectorVolumeIteratorType vvIt(inputVectorVolume, inputVectorVolume->GetLargestPossibleRegion());
+  InputVectorVolumeIteratorType vvIt(inputVectorVolume, inputVectorVolume->GetLargestPossibleRegion());
+  OutputVectorVolumeIteratorType fittedIt(fittedVolume, fittedVolume->GetLargestPossibleRegion());
+
   MaskVolumeIteratorType mvIt(maskVolume, maskVolume->GetLargestPossibleRegion());
-  MapVolumeIteratorType diffIt(slowDiffMap, slowDiffMap->GetLargestPossibleRegion());
-  MapVolumeIteratorType perfIt(fastDiffMap, fastDiffMap->GetLargestPossibleRegion());
-  MapVolumeIteratorType perfFracIt(fastDiffFractionMap, fastDiffFractionMap->GetLargestPossibleRegion());
   MapVolumeIteratorType rsqrIt(rsqrMap, rsqrMap->GetLargestPossibleRegion());
-  VectorVolumeIteratorType fittedIt(fittedVolume, fittedVolume->GetLargestPossibleRegion());
 
   itk::LevenbergMarquardtOptimizer::Pointer optimizer = itk::LevenbergMarquardtOptimizer::New();
-  MultiExpDecayCostFunction::Pointer costFunction = MultiExpDecayCostFunction::New();
-  MultiExpDecayCostFunction::ParametersType initialValue = MultiExpDecayCostFunction::ParametersType(4);
-  unsigned numValues = inputVectorVolume->GetNumberOfComponentsPerPixel();
-
-  initialValue[0] = 5000; // use b0
-  initialValue[1] = 0.7; 
-  initialValue[2] = 0.00025; 
-  initialValue[3] = 0.002; 
 
   int cnt = 0;
-  vvIt.GoToBegin();mvIt.GoToBegin();rsqrIt.GoToBegin();
-  perfIt.GoToBegin();diffIt.GoToBegin();perfFracIt.GoToBegin();fittedIt.GoToBegin();
-  for(;!diffIt.IsAtEnd();++vvIt,++mvIt,++perfIt,++diffIt,++perfFracIt,++fittedIt,++rsqrIt){
+
+  for(vvIt.GoToBegin();!vvIt.IsAtEnd();++vvIt){
     //if(cnt>10)
     //  break;
+    VectorVolumeType::IndexType index = vvIt.GetIndex();
     VectorVolumeType::PixelType vectorVoxel = vvIt.Get();
     VectorVolumeType::PixelType fittedVoxel(vectorVoxel.GetSize());
     for(int i=0;i<fittedVoxel.GetSize();i++)
-     fittedVoxel[i] = 0;
+      fittedVoxel[i] = 0;
 
     if(mvIt.Get() && vectorVoxel[0]){
       //cnt++;
@@ -572,9 +739,9 @@ int main( int argc, char * argv[])
 
       costFunction->SetY(imageValuesPtr,bValuesSelected);
 
+      DecayCostFunction::ParametersType initialValue = costFunction->GetInitialValue();
       initialValue[0] = vectorVoxel[0];
-      MultiExpDecayCostFunction::MeasureType temp = costFunction->GetValue(initialValue);
-
+      DecayCostFunction::MeasureType temp = costFunction->GetValue(initialValue);
       optimizer->UseCostFunctionGradientOff();
       optimizer->SetCostFunction(costFunction);
 
@@ -589,73 +756,97 @@ int main( int argc, char * argv[])
         optimizer->SetInitialPosition(initialValue);
         optimizer->StartOptimization();
       } catch(itk::ExceptionObject &e) {
-          std::cerr << " Exception caught: " << e << std::endl;
-
+        std::cerr << " Exception caught: " << e << std::endl;
       }
 
-     itk::LevenbergMarquardtOptimizer::ParametersType finalPosition;
+      itk::LevenbergMarquardtOptimizer::ParametersType finalPosition;
 
-     finalPosition = optimizer->GetCurrentPosition();
-     for(int i=0;i<fittedVoxel.GetSize();i++){
-       fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
-       //std::cout << fittedVoxel[i] << " ";
-     }
-     //std::cout << std::endl;
-     fittedIt.Set(fittedVoxel);
+      finalPosition = optimizer->GetCurrentPosition();
+      for(int i=0;i<fittedVoxel.GetSize();i++){
+        fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
+        //std::cerr << "Final position: " << finalPosition << std::endl;
+        //std::cout << fittedVoxel[i] << " ";
+      }
 
-     perfFracIt.Set(finalPosition[1]);
-     diffIt.Set(finalPosition[2]*1e+6);
-     perfIt.Set(finalPosition[3]*1e+6);
+      //std::cout << std::endl;
+      fittedIt.Set(fittedVoxel);
+      //std::cout << "Fitted voxel: " << fittedVoxel << " params: " << finalPosition << std::endl;
+      switch(modelType){
+        case DecayCostFunction::BiExponential:{
+          parameterMapItVector[0].Set(finalPosition[0]);
+          parameterMapItVector[1].Set(finalPosition[1]);
+          parameterMapItVector[2].Set(finalPosition[2]*1e+6);
+          parameterMapItVector[3].Set(finalPosition[3]*1e+6);
+          break;
+        }
+        case DecayCostFunction::Kurtosis:{
+          parameterMapItVector[0].Set(finalPosition[0]);
+          parameterMapItVector[1].Set(finalPosition[1]);
+          parameterMapItVector[2].Set(finalPosition[2]*1e+6);
+          break;
+        }
+      case DecayCostFunction::MonoExponential:{
+        parameterMapItVector[0].Set(finalPosition[0]);
+        parameterMapItVector[1].Set(finalPosition[1]*1e+6);
+        break;
+      }
 
-     // initialize the rsqr map
-     // see PkModeling/CLI/itkConcentrationToQuantitativeImageFilter.hxx:452
-     {
-       MultiExpDecayCostFunction::MeasureType residuals = costFunction->GetValue(optimizer->GetCurrentPosition());
-       double rms = optimizer->GetOptimizer()->get_end_error();
-       double SSerr = rms*rms*vectorVoxel.GetSize();
-       double sumSquared = 0.0;
-       double sum = 0.0;
-       for (unsigned int i=0; i < vectorVoxel.GetSize(); ++i){
-         sum += vectorVoxel[i];
-         sumSquared += (vectorVoxel[i]*vectorVoxel[i]);
-       }
-       double SStot = sumSquared - sum*sum/(double)vectorVoxel.GetSize();
-  
-       double rSquared = 1.0 - (SSerr / SStot);
-       rsqrIt.Set(rSquared);
-     }
-   }
+      default: abort();
+      }
+
+      // initialize the rsqr map
+      // see PkModeling/CLI/itkConcentrationToQuantitativeImageFilter.hxx:452
+      {
+        DecayCostFunction::MeasureType residuals = costFunction->GetValue(optimizer->GetCurrentPosition());
+        double rms = optimizer->GetOptimizer()->get_end_error();
+        double SSerr = rms*rms*vectorVoxel.GetSize();
+        double sumSquared = 0.0;
+        double sum = 0.0;
+        for (unsigned int i=0; i < vectorVoxel.GetSize(); ++i){
+          sum += vectorVoxel[i];
+          sumSquared += (vectorVoxel[i]*vectorVoxel[i]);
+        }
+        double SStot = sumSquared - sum*sum/(double)vectorVoxel.GetSize();
+
+        double rSquared = 1.0 - (SSerr / SStot);
+        rsqrIt.Set(rSquared);
+      }
+    }
+
+    for(int i=0;i<costFunction->GetNumberOfParameters();i++){
+      ++parameterMapItVector[i];
+    }
+    ++rsqrIt;++mvIt;++fittedIt;
   }
 
+  switch(modelType){
+  case DecayCostFunction::BiExponential:{
+    if(fastDiffFractionMapFileName.size())
+      SaveMap(parameterMapVector[1], fastDiffFractionMapFileName);
+    if(slowDiffMapFileName.size())
+      SaveMap(parameterMapVector[2], slowDiffMapFileName);
+    if(fastDiffMapFileName.size())
+      SaveMap(parameterMapVector[3], fastDiffMapFileName);
+    break;
+  }
+  case DecayCostFunction::Kurtosis:{
+    if(kurtosisMapFileName.size())
+      SaveMap(parameterMapVector[1], kurtosisMapFileName);
+    if(kurtosisDiffMapFileName.size())
+      SaveMap(parameterMapVector[2], kurtosisDiffMapFileName);
+    break;
+  }
+  case DecayCostFunction::MonoExponential:{
+    if(adcMapFileName.size())
+      SaveMap(parameterMapVector[1], adcMapFileName);
+    break;
+  }
+  default:abort();
+  }
 
-  if(slowDiffMapFileName.size()){
-    MapWriterType::Pointer writer = MapWriterType::New();
-    writer->SetInput(slowDiffMap);
-    writer->SetFileName(slowDiffMapFileName.c_str());
-    writer->SetUseCompression(1);
-    writer->Update();
-  }
-  if(fastDiffMapFileName.size()){
-    MapWriterType::Pointer writer = MapWriterType::New();
-    writer->SetInput(fastDiffMap);
-    writer->SetFileName(fastDiffMapFileName.c_str());
-    writer->SetUseCompression(1);
-    writer->Update();
-  }
-  if(fastDiffFractionMapFileName.size()){
-    MapWriterType::Pointer writer = MapWriterType::New();
-    writer->SetInput(fastDiffFractionMap);
-    writer->SetFileName(fastDiffFractionMapFileName.c_str());
-    writer->SetUseCompression(1);
-    writer->Update();
-  }
-  if(rsqrVolumeFileName.size()){
-    MapWriterType::Pointer writer = MapWriterType::New();
-    writer->SetInput(rsqrMap);
-    writer->SetFileName(rsqrVolumeFileName.c_str());
-    writer->SetUseCompression(1);
-    writer->Update();
-  }
+  if(rsqrVolumeFileName.size())
+    SaveMap(rsqrMap, rsqrVolumeFileName);
+
   if(fittedVolumeFileName.size()){
     FittedVolumeWriterType::Pointer writer = FittedVolumeWriterType::New();
     fittedVolume->SetMetaDataDictionary(inputVectorVolume->GetMetaDataDictionary());
