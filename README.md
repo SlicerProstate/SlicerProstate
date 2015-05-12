@@ -38,6 +38,7 @@ This work supported in part the National Institutes of Health, National Cancer I
 The following individuals and groups contributed directly to the development of SlicerProstate functionality:
 * Andrey Fedorov, Brigham and Women's Hospital
 * Andras Lasso, Queen's University
+* Alireza Mehrtash, Brigham and Women's Hospital
 
 ## References
 
