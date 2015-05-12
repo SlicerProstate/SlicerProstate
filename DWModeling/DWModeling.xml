@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<executable>
+  <category>Quantification</category>
+  <title>DWModeling</title>
+  <description><![CDATA[Modeling of quantitative parameters from Diffusion Weighted MRI]]></description>
+  <version>0.0.1</version>
+  <documentation-url></documentation-url>
+  <license>Slicer</license>
+  <contributor>Andriy Fedorov (SPL/BWH)</contributor>
+  <acknowledgements>This work was partially funded by NIH grants R01 CA160902 (PI Maier) and U24 CA180918 (PIs Kikinis/Fedorov). </acknowledgements>
+  <parameters advanced="false">
+    <label>Input</label>
+    <description>Input parameters</description>
+
+    <image type="dynamic-contrast-enhanced">
+      <name>imageName</name>
+      <label>Input image</label>
+      <channel>input</channel>
+      <description>Input DWI MRI trace multivolume image</description>
+      <index>0</index>
+    </image>
+
+    <string-enumeration>
+      <name>modelName</name>
+      <longflag>model</longflag>
+      <label>Model</label>
+      <description>Select the mathematical model used to fit the data</description>
+      <default>BiExponential</default>
+      <element>MonoExponential</element>
+      <element>BiExponential</element>
+      <element>Kurtosis</element>
+    </string-enumeration>
+
+    <image type="label">
+      <name>maskName</name>
+      <longflag>mask</longflag>
+      <label>Input mask</label>
+      <channel>input</channel>
+      <description>Input mask. Optional; if not specified, fitting will be done at all voxels.</description>
+    </image>
+
+    <integer-vector>
+      <name>bValuesToInclude</name>
+      <label>B-values to include</label>
+      <longflag>bvalInclude</longflag>
+      <description>List of integers corresponding to the b-values that should be included in fitting data. Note that only one of the two lists (inlusion or exclusion) should be populated, or both can be empty, in which case all b-values will be used. Optional; if not defined, all b-values will be used.</description>
+      <default></default>
+    </integer-vector>
+
+    <integer-vector>
+      <name>bValuesToExclude</name>
+      <label>B-values to exclude</label>
+      <longflag>bvalExclude</longflag>
+      <description>List of integers corresponding to the b-values that should be excluded from fitting data. Note that only one of the two lists (inlusion or exclusion) should be populated, or both can be empty, in which case all b-values will be used. Optional; if not defined, all b-values will be used.</description>
+      <default></default>
+    </integer-vector>
+
+    <image type="dynamic-contrast-enhanced">
+      <name>fittedVolumeFileName</name>
+      <longflag>fittedVolume</longflag>
+      <label>Fitted volume</label>
+      <description>Output volume containing the values of the fitted function</description>
+      <channel>output</channel>
+    </image>
+
+    <image>
+      <name>rsqrVolumeFileName</name>
+      <longflag>rsqrVolume</longflag>
+      <label>Quality of fit volume</label>
+      <description>Output volume containing the R^2 measure of the quality of fit</description>
+      <channel>output</channel>
+    </image>
+
+   </parameters>
+
+   <parameters>
+    <label>MonoExponential model parameters</label>
+    <description></description>
+    <image>
+      <name>adcMapFileName</name>
+      <longflag>adcMonoExpDiff</longflag>
+      <label>MonoExp diffusion map</label>
+      <channel>output</channel>
+      <description>Diffusion coefficient map of the mono-exponential model</description>
+    </image>
+   </parameters>
+
+   <parameters>
+    <label>BiExponential model parameters</label>
+    <description></description>
+    <image>
+      <name>slowDiffMapFileName</name>
+      <longflag>slowDiff</longflag>
+      <label>Slow diffusion map</label>
+      <channel>output</channel>
+      <description>Slow diffusion coefficient map of the bi-exponential model</description>
+    </image>
+
+    <image>
+      <name>fastDiffMapFileName</name>
+      <longflag>fastDiff</longflag>
+      <label>Fast diffusion map</label>
+      <channel>output</channel>
+      <description>Fast diffusion coefficient map of the bi-exponential model</description>
+    </image>
+
+    <image>
+      <name>fastDiffFractionMapFileName</name>
+      <longflag>fastDiffFraction</longflag>
+      <label>Fast diffusion fraction map</label>
+      <channel>output</channel>
+      <description>Fast diffusion fraction map of the bi-exponential model</description>
+    </image>
+   </parameters>
+
+   <parameters>
+    <label>Kurtosis model parameters</label>
+    <description></description>
+    <image>
+      <name>kurtosisDiffMapFileName</name>
+      <longflag>kurtosisDiff</longflag>
+      <label>Kurtosis diffusion map</label>
+      <channel>output</channel>
+      <description>Diffusion coefficient map of the kurtosis model</description>
+    </image>
+
+    <image>
+      <name>kurtosisMapFileName</name>
+      <longflag>kurtosis</longflag>
+      <label>Kurtosis map</label>
+      <channel>output</channel>
+      <description>Kurtosos map</description>
+    </image>
+  </parameters>
+
+</executable>
