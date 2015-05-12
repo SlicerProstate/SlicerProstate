@@ -32,6 +32,7 @@ This work supported in part the National Institutes of Health, National Cancer I
 * Quantitative MRI of prostate cancer as a biomarker and guide for treatment, Quantitative Imaging Network (U01 CA151261, PI Fennessy)
 * Enabling technologies for MRI-guided prostate interventions (R01 CA111288, PI Tempany)
 * The National Center for Image-Guided Therapy (P41 EB015898, PI Tempany)
+* Advancement and Validation of Prostate Diffusion and Spectroscopic MRI (R01 CA160902, PI Maier)
 * Quantitative Image Informatics for Cancer Research (QIICR) (U24 CA180918, PIs Kikinis and Fedorov)
 
 The following individuals and groups contributed directly to the development of SlicerProstate functionality:
