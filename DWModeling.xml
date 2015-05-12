@@ -2,12 +2,12 @@
 <executable>
   <category>Quantification</category>
   <title>DWModeling</title>
-  <description><![CDATA[Modeling of quantitative parameters from Diffusion Weighted Imaging]]></description>
+  <description><![CDATA[Modeling of quantitative parameters from Diffusion Weighted MRI]]></description>
   <version>0.0.1</version>
   <documentation-url></documentation-url>
   <license>Slicer</license>
   <contributor>Andriy Fedorov (SPL/BWH)</contributor>
-  <acknowledgements>This work was partially funded by NIH grants ...</acknowledgements>
+  <acknowledgements>This work was partially funded by NIH grants R01 CA160902 (PI Maier) and U24 CA180918 (PIs Kikinis/Fedorov). </acknowledgements>
   <parameters advanced="false">
     <label>Input</label>
     <description>Input parameters</description>
@@ -79,9 +79,9 @@
     <image>
       <name>adcMapFileName</name>
       <longflag>adcMonoExpDiff</longflag>
-      <label>ADC map</label>
+      <label>MonoExp diffusion map</label>
       <channel>output</channel>
-      <description>ADC coefficient map for the monoexponential diffusion coefficient</description>
+      <description>Diffusion coefficient map of the mono-exponential model</description>
     </image>
    </parameters>
 
@@ -93,7 +93,7 @@
       <longflag>slowDiff</longflag>
       <label>Slow diffusion map</label>
       <channel>output</channel>
-      <description>Coefficient map for the slow diffusion component</description>
+      <description>Slow diffusion coefficient map of the bi-exponential model</description>
     </image>
 
     <image>
@@ -101,7 +101,7 @@
       <longflag>fastDiff</longflag>
       <label>Fast diffusion map</label>
       <channel>output</channel>
-      <description>Coefficient map for the fast diffusion component</description>
+      <description>Fast diffusion coefficient map of the bi-exponential model</description>
     </image>
 
     <image>
@@ -109,7 +109,7 @@
       <longflag>fastDiffFraction</longflag>
       <label>Fast diffusion fraction map</label>
       <channel>output</channel>
-      <description>Fast diffusion fraction coefficient map</description>
+      <description>Fast diffusion fraction map of the bi-exponential model</description>
     </image>
    </parameters>
 
@@ -119,9 +119,9 @@
     <image>
       <name>kurtosisDiffMapFileName</name>
       <longflag>kurtosisDiff</longflag>
-      <label>Kurtosis diffusion coefficient map</label>
+      <label>Kurtosis diffusion map</label>
       <channel>output</channel>
-      <description>Coefficient map for the kurtosis diffusion</description>
+      <description>Diffusion coefficient map of the kurtosis model</description>
     </image>
 
     <image>
