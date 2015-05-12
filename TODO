@@ -1,5 +1,0 @@
-* experiment with the updated start points
-* try discarding B-values based on the fit results, and re-fit
-* add selection of the model
-* refactor the code to have fitting in an ITK separate class (will also help
-   wiht multithreading)
