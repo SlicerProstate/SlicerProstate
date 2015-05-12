@@ -21,7 +21,10 @@ include(${Slicer_USE_FILE})
 add_subdirectory(QuadEdgeSurfaceMesher)
 add_subdirectory(SegmentationSmoothing)
 add_subdirectory(DistanceMapBasedRegistration)
+add_subdirectory(DWModeling)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------
-include(${Slicer_EXTENSION_CPACK})
+if(NOT Slicer_SOURCE_DIR)
+  include(${Slicer_EXTENSION_CPACK})
+endif()
