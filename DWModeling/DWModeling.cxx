@@ -554,7 +554,7 @@ int main( int argc, char * argv[])
 {
   PARSE_ARGS;
 
-  if(bValuesToInclude.size() and bValuesToExclude.size()){
+  if((bValuesToInclude.size()>0) && (bValuesToExclude.size()>0)){
     std::cerr << "ERROR: Either inclusion or exclusion b-values list can be specified, not both!" << std::endl;
     return -1;
   }
