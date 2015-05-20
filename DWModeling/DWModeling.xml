@@ -54,6 +54,11 @@
       <description>List of integers corresponding to the b-values that should be excluded from fitting data. Note that only one of the two lists (inlusion or exclusion) should be populated, or both can be empty, in which case all b-values will be used. Optional; if not defined, all b-values will be used.</description>
       <default></default>
     </integer-vector>
+  </parameters>
+
+  <parameters advanced="false">
+    <label>Output common to all models</label>
+    <description></description>
 
     <image type="dynamic-contrast-enhanced">
       <name>fittedVolumeFileName</name>
@@ -74,7 +79,7 @@
    </parameters>
 
    <parameters>
-    <label>MonoExponential model parameters</label>
+    <label>MonoExponential model output</label>
     <description></description>
     <image>
       <name>adcMapFileName</name>
@@ -86,7 +91,7 @@
    </parameters>
 
    <parameters>
-    <label>BiExponential model parameters</label>
+    <label>BiExponential model outputs</label>
     <description></description>
     <image>
       <name>slowDiffMapFileName</name>
@@ -114,7 +119,7 @@
    </parameters>
 
    <parameters>
-    <label>Kurtosis model parameters</label>
+    <label>Kurtosis model outputs</label>
     <description></description>
     <image>
       <name>kurtosisDiffMapFileName</name>
