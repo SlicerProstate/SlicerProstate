@@ -797,18 +797,18 @@ int main( int argc, char * argv[])
       // initialize the rsqr map
       // see PkModeling/CLI/itkConcentrationToQuantitativeImageFilter.hxx:452
       {
-        DecayCostFunction::MeasureType residuals = costFunction->GetValue(optimizer->GetCurrentPosition());
         double rms = optimizer->GetOptimizer()->get_end_error();
-        double SSerr = rms*rms*vectorVoxel.GetSize();
+        double SSerr = rms*rms*bValuesSelected;
         double sumSquared = 0.0;
         double sum = 0.0;
-        for (unsigned int i=0; i < vectorVoxel.GetSize(); ++i){
-          sum += vectorVoxel[i];
-          sumSquared += (vectorVoxel[i]*vectorVoxel[i]);
-        }
-        double SStot = sumSquared - sum*sum/(double)vectorVoxel.GetSize();
+        double rSquared = 0.0;
 
-        double rSquared = 1.0 - (SSerr / SStot);
+        for (unsigned int i=0; i < bValuesSelected; ++i){
+          sum += imageValuesPtr[i];
+          sumSquared += (imageValuesPtr[i]*imageValuesPtr[i]);
+        }
+        double SStot = sumSquared - sum*sum/(double)bValuesSelected;
+        rSquared = 1.0 - (SSerr / SStot);
         rsqrIt.Set(rSquared);
       }
     }
