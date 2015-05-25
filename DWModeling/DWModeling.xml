@@ -4,7 +4,7 @@
   <title>DWModeling</title>
   <description><![CDATA[Modeling of quantitative parameters from Diffusion Weighted MRI]]></description>
   <version>0.0.1</version>
-  <documentation-url></documentation-url>
+  <documentation-url>http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Modules/DWModeling</documentation-url>
   <license>Slicer</license>
   <contributor>Andriy Fedorov (SPL/BWH)</contributor>
   <acknowledgements>This work was partially funded by NIH grants R01 CA160902 (PI Maier) and U24 CA180918 (PIs Kikinis/Fedorov). </acknowledgements>

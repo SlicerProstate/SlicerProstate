@@ -4,7 +4,7 @@
   <title>QuadEdge Surface Mesher</title>
   <description><![CDATA[Recover and simplify triangular surface mesh from a binary image.]]></description>
   <version>0.0.1</version>
-  <documentation-url></documentation-url>
+  <documentation-url>http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Modules/QuadEdgeSurfaceMesher</documentation-url>
   <license>Slicer</license>
   <contributor>Andrey Fedorov (SPL/BWH)</contributor>
   <acknowledgements>This work supported in part the National Institutes of Health, National Cancer Institute through the following grants: Enabling technologies for MRI-guided prostate interventions (R01 CA111288, PI Tempany), The National Center for Image-Guided Therapy (P41 EB015898, PI Tempany) Quantitative Image Informatics for Cancer Research (QIICR) (U24 CA180918, PIs Kikinis and Fedorov)</acknowledgements>
