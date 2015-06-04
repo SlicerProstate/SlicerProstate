@@ -78,8 +78,7 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     # fixed image label selector
     #
     self.fixedImageLabelSelector = slicer.qMRMLNodeComboBox()
-    self.fixedImageLabelSelector.nodeTypes = ( ("vtkMRMLScalarVolumeNode"), "" )
-    self.fixedImageLabelSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", 1 )
+    self.fixedImageLabelSelector.nodeTypes = ( ("vtkMRMLLabelMapVolumeNode"), "" )
     self.fixedImageLabelSelector.selectNodeUponCreation = True
     self.fixedImageLabelSelector.addEnabled = False
     self.fixedImageLabelSelector.removeEnabled = False
@@ -109,8 +108,7 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     # moving image label selector
     #
     self.movingImageLabelSelector = slicer.qMRMLNodeComboBox()
-    self.movingImageLabelSelector.nodeTypes = ( ("vtkMRMLScalarVolumeNode"), "" )
-    self.movingImageLabelSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", 1 )
+    self.movingImageLabelSelector.nodeTypes = ( ("vtkMRMLLabelMapVolumeNode"), "" )
     self.movingImageLabelSelector.selectNodeUponCreation = True
     self.movingImageLabelSelector.addEnabled = False
     self.movingImageLabelSelector.removeEnabled = False
@@ -159,7 +157,7 @@ class DistanceMapBasedRegistrationWidget(ScriptedLoadableModuleWidget):
     '''
     self.outputImageSelector = slicer.qMRMLNodeComboBox()
     self.outputImageSelector.nodeTypes = ( ("vtkMRMLScalarVolumeNode"), "" )
-    # self.outputImageSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", 1 )
+    # self.outputImageSelector.nodeTypes = ( ("vtkMRMLLabelMapVolumeNode"), "" )
     self.outputImageSelector.selectNodeUponCreation = True
     self.outputImageSelector.addEnabled = True
     self.outputImageSelector.removeEnabled = True
