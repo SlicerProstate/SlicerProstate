@@ -55,7 +55,7 @@ std::vector<float> GetBvalues(itk::MetaDataDictionary& dictionary)
       std::string frameLabelsString;
       itk::ExposeMetaData(dictionary, "MultiVolume.FrameLabels", frameLabelsString);
       std::stringstream frameLabelsStream(frameLabelsString);
-      if (tag == "GE.B-value")
+      if (tag.find("B-value") != std::string::npos)
         {
         float t;
         while (frameLabelsStream >> t)
