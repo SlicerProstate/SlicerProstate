@@ -138,4 +138,33 @@
     </image>
   </parameters>
 
+  <parameters advanced="true">
+    <label>Initialization</label>
+    <description>Model-specific initial parameters</description>
+
+    <float-vector>
+      <name>monoExpInitParameters</name>
+      <label>Mono-exponential model</label>
+      <longflag>monoExpInitParameters</longflag>
+      <description>List of initial model parameters in the following format (all numbers are floating point):initialScale,initialADC</description>
+      <default>0,0.0015</default>
+    </float-vector>
+
+    <float-vector>
+      <name>biExpInitParameters</name>
+      <label>Bi-exponential model</label>
+      <longflag>biExpInitParameters</longflag>
+      <description>List of initial model parameters in the following format (all numbers are floating point):initialScale,initialFastDiffusionFraction,initialSlowDiffusionCoefficient,initialFastDiffusionCoefficient</description>
+      <default>0,0.7,0.00025,0.002</default>
+    </float-vector>
+
+    <float-vector>
+      <name>kurtosisInitParameters</name>
+      <label>Kurtosis model</label>
+      <longflag>kurtosisInitParameters</longflag>
+      <description>List of initial model parameters in the following format (all numbers are floating point):initialScale,initialKurtosis,initialKurtosisDiffusion</description>
+      <default>0,1,0.0015</default>
+    </float-vector>
+
+  </parameters>
 </executable>

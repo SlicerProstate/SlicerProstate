@@ -78,7 +78,7 @@ std::vector<float> GetBvalues(itk::MetaDataDictionary& dictionary)
     {
     itkGenericExceptionMacro("Missing attribute 'MultiVolume.FrameIdentifyingDICOMTagName'.");
     }
-  
+
   return bValues;
 }
 
@@ -91,28 +91,28 @@ public:
   typedef itk::SmartPointer<Self>           Pointer;
   typedef itk::SmartPointer<const Self>     ConstPointer;
   itkNewMacro( Self );
-        
+
   enum { SpaceDimension =  3 };
-  unsigned int RangeDimension; 
+  unsigned int RangeDimension;
 
   typedef Superclass::ParametersType              ParametersType;
   typedef Superclass::DerivativeType              DerivativeType;
   typedef Superclass::MeasureType                 MeasureType, ArrayType;
   typedef Superclass::ParametersValueType         ValueType;
-		      
-        
+
+
   ExpDecayCostFunction()
   {
   }
-        
+
   void SetY (const float* y, int sz) //Self signal Y
-  {    
+  {
     Y.set_size (sz);
     for (int i = 0; i < sz; ++i)
       Y[i] = y[i];
     //std::cout << "Cv: " << Y << std::endl;
   }
-        
+
   void SetX (const float* x, int sz) //Self signal X
   {
     X.set_size (sz);
@@ -128,7 +128,7 @@ public:
   ArrayType GetY(){
     return Y;
   }
-        
+
   MeasureType GetFittedValue( const ParametersType & parameters) const
   {
     MeasureType measure(RangeDimension);
@@ -147,21 +147,21 @@ public:
       {
       measure[i] = Y[i]-exp(-1.*X[i]*parameters[0])*parameters[1];
       }
-           
-    return measure; 
+
+    return measure;
   }
-        
+
   //Not going to be used
   void GetDerivative( const ParametersType & /* parameters*/,
                       DerivativeType  & /*derivative*/ ) const
-  {   
+  {
   }
-        
+
   unsigned int GetNumberOfParameters(void) const
   {
     return 2;
   }
-       
+
   void SetNumberOfValues(unsigned int nValues)
     {
     RangeDimension = nValues;
@@ -171,13 +171,13 @@ public:
   {
     return RangeDimension;
   }
-        
+
 protected:
   virtual ~ExpDecayCostFunction(){}
 private:
-        
+
   ArrayType X, Y;
-        
+
   ArrayType Exponential(ArrayType X) const
   {
     ArrayType Z;
@@ -188,17 +188,17 @@ private:
       }
     return Z;
   };
-        
+
   int constraintFunc(ValueType x) const
   {
     if (x<0||x>1)
       return 1;
     else
       return 0;
-            
+
   };
-        
-        
+
+
 };
 
 class DecayCostFunction: public itk::MultipleValuedCostFunction
@@ -209,7 +209,7 @@ public:
   typedef itk::SmartPointer<Self>           Pointer;
   typedef itk::SmartPointer<const Self>     ConstPointer;
   itkNewMacro( Self );
-        
+
   typedef Superclass::ParametersType              ParametersType;
   typedef Superclass::DerivativeType              DerivativeType;
   typedef Superclass::MeasureType                 MeasureType, ArrayType;
@@ -290,13 +290,13 @@ public:
   }
 
   void SetY (const float* y, int sz) //Self signal Y
-  {    
+  {
     Y.set_size (sz);
     for (int i = 0; i < sz; ++i)
       Y[i] = y[i];
     //std::cout << "Cv: " << Y << std::endl;
   }
-        
+
   void SetX (const float* x, int sz) //Self signal X
   {
     X.set_size (sz);
@@ -312,7 +312,7 @@ public:
   ArrayType GetY(){
     return Y;
   }
-        
+
   MeasureType GetFittedVector( const ParametersType & parameters) const
   {
     MeasureType measure(RangeDimension);
@@ -441,16 +441,16 @@ public:
     default:
       abort(); // not implemented
     }
-           
-    return measure; 
+
+    return measure;
   }
-        
+
   //Not going to be used
   void GetDerivative( const ParametersType & /* parameters*/,
                       DerivativeType  & /*derivative*/ ) const
-  {   
+  {
   }
-        
+
   unsigned int GetNumberOfParameters(void) const
   {
     switch(modelType){
@@ -460,7 +460,7 @@ public:
     default: return 0; // should never get here
     }
   }
-       
+
   void SetNumberOfValues(unsigned int nValues)
     {
     RangeDimension = nValues;
@@ -474,35 +474,35 @@ public:
   Model GetModelType() const {
     return modelType;
   }
-        
+
 protected:
   virtual ~DecayCostFunction(){}
 private:
-        
+
   ArrayType X, Y;
 
   unsigned int RangeDimension;
   Model modelType;
   ParametersType initialValue;
   std::vector<std::string> parametersMeaning;
-        
+
   int constraintFunc(ValueType x) const
   {
     if (x<0||x>1)
       return 1;
     else
       return 0;
-            
+
   };
-        
-        
+
+
 };
 
 // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
 void OnlineVariance(itk::MultipleValuedCostFunction::MeasureType &values,
     double &mean, double &SD){
   double n = 0, M2 = 0;
-     
+
   for(unsigned int i=0;i<values.GetSize();i++){
     double x = values[i];
     n++;
@@ -560,7 +560,7 @@ int main( int argc, char * argv[])
   }
 
   //Read VectorVolume
-  VectorVolumeReaderType::Pointer multiVolumeReader 
+  VectorVolumeReaderType::Pointer multiVolumeReader
     = VectorVolumeReaderType::New();
   multiVolumeReader->SetFileName(imageName.c_str() );
   multiVolumeReader->Update();
@@ -604,7 +604,7 @@ int main( int argc, char * argv[])
       memset(bValuesMask,false,sizeof(bool)*bValuesTotal);
       bValuesSelected = 0;
       for(int i=0;i<bValuesTotal;i++){
-        if(std::find(bValuesToInclude.begin(), bValuesToInclude.end(), bValues[i]) 
+        if(std::find(bValuesToInclude.begin(), bValuesToInclude.end(), bValues[i])
             != bValuesToInclude.end()){
           bValuesMask[i] = true;
           bValuesSelected++;
@@ -616,7 +616,7 @@ int main( int argc, char * argv[])
       memset(bValuesMask,true,sizeof(bool)*bValuesTotal);
       bValuesSelected = bValuesTotal;
       for(int i=0;i<bValuesTotal;i++){
-        if(std::find(bValuesToExclude.begin(), bValuesToExclude.end(), bValues[i]) 
+        if(std::find(bValuesToExclude.begin(), bValuesToExclude.end(), bValues[i])
             != bValuesToExclude.end()){
           bValuesMask[i] = false;
           bValuesSelected--;
@@ -645,8 +645,8 @@ int main( int argc, char * argv[])
     }
     std::cout << std::endl;
   } catch (itk::ExceptionObject &exc) {
-    itkGenericExceptionMacro(<< exc.GetDescription() 
-            << " Image " << imageName 
+    itkGenericExceptionMacro(<< exc.GetDescription()
+            << " Image " << imageName
             << " does not contain sufficient attributes to support algorithms.");
     return EXIT_FAILURE;
   }
@@ -669,6 +669,23 @@ int main( int argc, char * argv[])
 
   DecayCostFunction::Pointer costFunction = DecayCostFunction::New();
   costFunction->SetModelType(modelType);
+
+  // set initial parameters model-dependent
+  DecayCostFunction::ParametersType initialValue = costFunction->GetInitialValue();
+  if(modelName == "BiExponential"){
+    initialValue[0] = biExpInitParameters[0];
+    initialValue[1] = biExpInitParameters[1];
+    initialValue[2] = biExpInitParameters[2];
+    initialValue[3] = biExpInitParameters[3];
+  } else if(modelName == "MonoExponential") {
+    initialValue[0] = monoExpInitParameters[0];
+    initialValue[1] = monoExpInitParameters[1];
+  } else if(modelName == "Kurtosis") {
+    initialValue[0] = kurtosisInitParameters[0];
+    initialValue[1] = kurtosisInitParameters[1];
+    initialValue[2] = kurtosisInitParameters[2];
+  }
+  costFunction->SetInitialValues(initialValue);
 
   parameterMapVector.resize(costFunction->GetNumberOfParameters());
   for(int i=0;i<costFunction->GetNumberOfParameters();i++){
