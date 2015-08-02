@@ -82,125 +82,6 @@ std::vector<float> GetBvalues(itk::MetaDataDictionary& dictionary)
   return bValues;
 }
 
-
-class ExpDecayCostFunction: public itk::MultipleValuedCostFunction
-{
-public:
-  typedef ExpDecayCostFunction                    Self;
-  typedef itk::MultipleValuedCostFunction   Superclass;
-  typedef itk::SmartPointer<Self>           Pointer;
-  typedef itk::SmartPointer<const Self>     ConstPointer;
-  itkNewMacro( Self );
-
-  enum { SpaceDimension =  3 };
-  unsigned int RangeDimension;
-
-  typedef Superclass::ParametersType              ParametersType;
-  typedef Superclass::DerivativeType              DerivativeType;
-  typedef Superclass::MeasureType                 MeasureType, ArrayType;
-  typedef Superclass::ParametersValueType         ValueType;
-
-
-  ExpDecayCostFunction()
-  {
-  }
-
-  void SetY (const float* y, int sz) //Self signal Y
-  {
-    Y.set_size (sz);
-    for (int i = 0; i < sz; ++i)
-      Y[i] = y[i];
-    //std::cout << "Cv: " << Y << std::endl;
-  }
-
-  void SetX (const float* x, int sz) //Self signal X
-  {
-    X.set_size (sz);
-    for( int i = 0; i < sz; ++i )
-      X[i] = x[i];
-    //std::cout << "Time: " << X << std::endl;
-  }
-
-  ArrayType GetX(){
-    return X;
-  }
-
-  ArrayType GetY(){
-    return Y;
-  }
-
-  MeasureType GetFittedValue( const ParametersType & parameters) const
-  {
-    MeasureType measure(RangeDimension);
-    for(int i=0;i<measure.size();i++)
-      {
-      measure[i] = exp(-1.*X[i]*parameters[0])*parameters[1];
-      }
-    return measure;
-  }
-
-  MeasureType GetValue( const ParametersType & parameters) const
-  {
-    MeasureType measure(RangeDimension);
-
-    for(int i=0;i<measure.size();i++)
-      {
-      measure[i] = Y[i]-exp(-1.*X[i]*parameters[0])*parameters[1];
-      }
-
-    return measure;
-  }
-
-  //Not going to be used
-  void GetDerivative( const ParametersType & /* parameters*/,
-                      DerivativeType  & /*derivative*/ ) const
-  {
-  }
-
-  unsigned int GetNumberOfParameters(void) const
-  {
-    return 2;
-  }
-
-  void SetNumberOfValues(unsigned int nValues)
-    {
-    RangeDimension = nValues;
-    }
-
-  unsigned int GetNumberOfValues(void) const
-  {
-    return RangeDimension;
-  }
-
-protected:
-  virtual ~ExpDecayCostFunction(){}
-private:
-
-  ArrayType X, Y;
-
-  ArrayType Exponential(ArrayType X) const
-  {
-    ArrayType Z;
-    Z.set_size(X.size());
-    for (unsigned int i=0; i<X.size(); i++)
-      {
-      Z[i] = exp(X(i));
-      }
-    return Z;
-  };
-
-  int constraintFunc(ValueType x) const
-  {
-    if (x<0||x>1)
-      return 1;
-    else
-      return 0;
-
-  };
-
-
-};
-
 class DecayCostFunction: public itk::MultipleValuedCostFunction
 {
 public:
@@ -218,7 +99,9 @@ public:
   enum Model {
     MonoExponential = 0,
     BiExponential = 1,
-    Kurtosis = 2
+    Kurtosis = 2,
+    StretchedExponential = 3,
+    Gamma = 4
   };
 
   enum { SpaceDimension =  3 };
@@ -272,6 +155,45 @@ public:
       parametersMeaning.push_back("ADC");
 
       break;
+    case StretchedExponential:
+      initialValue = ParametersType(3);
+      initialValue[0] = 0;
+      initialValue[1] = 0.0017;
+      initialValue[2] = 0.7;
+
+      parametersMeaning.clear();
+      // See Bennett et al. 2003
+      // Bennett KM, Schmainda KM, Bennett RT, Rowe DB, Lu H, Hyde JS.
+      // Characterization of continuously distributed cortical water diffusion
+      // rates with a stretched-exponential model.
+      // Magn Reson Med. 2003;50: 727–734. doi:10.1002/mrm.10581
+      parametersMeaning.push_back("Scale");
+      // the quantity derived from fitting the stretched-exponential
+      // function to the data
+      parametersMeaning.push_back("Distributed Diffusion Coefficient (DDC)");
+      // Stretching parameter between 0 and 1 characterizing deviation of the
+      // signal attennuation from the monoexponential behavior
+      parametersMeaning.push_back("Alpha");
+
+      break;
+
+    case Gamma:
+      initialValue = ParametersType(3);
+      initialValue[0] = 0;
+      initialValue[1] = 1.5;
+      initialValue[2] = 0.002;
+
+      parametersMeaning.clear();
+      // See Oshio et al. 2014
+      // Oshio K, Shinmoto H, Mulkern RV. Interpretation of diffusion MR
+      // imaging data using a gamma distribution model.
+      // Magn Reson Med Sci. 2014;13: 191–195. doi:10.2463/mrms.2014-0016
+      parametersMeaning.push_back("Scale");
+      parametersMeaning.push_back("k parameter of the gamma distribution");
+      parametersMeaning.push_back("theta parameter of the gamma distribution");
+
+      break;
+
     default:
       abort(); // not implemented!
     }
@@ -354,6 +276,26 @@ public:
         }
       break;
     }
+    case StretchedExponential:{
+      float scale = parameters[0],
+        DDC = parameters[1],
+        alpha = parameters[2];
+
+      for(int i=0;i<measure.size();i++){
+        measure[i] = scale*(exp(-(pow((X[i]*DDC), alpha))));
+      }
+      break;
+    }
+    case Gamma:
+    {
+      float scale = parameters[0],
+        k = parameters[1], theta = parameters[2];
+
+      for(int i=0;i<measure.size();i++){
+        measure[i] = scale/(pow((1+X[i]*theta), k));
+      }
+      break;
+    }
     default:
       abort();
     }
@@ -388,6 +330,20 @@ public:
           adc = parameters[1];
       measure =
           scale*exp(-1.*x*adc);
+      break;
+    }
+    case StretchedExponential:{
+      float scale = parameters[0],
+        DDC = parameters[1],
+        alpha = parameters[2];
+        measure = scale*(exp(-(pow((x*DDC), alpha))));
+      break;
+    }
+    case Gamma:
+    {
+      float scale = parameters[0],
+        k = parameters[1], theta = parameters[2];
+      measure = scale/(pow((1+x*theta), k));
       break;
     }
     default:
@@ -438,6 +394,26 @@ public:
         }
       break;
     }
+    case StretchedExponential:{
+      float scale = parameters[0],
+        DDC = parameters[1],
+        alpha = parameters[2];
+
+      for(int i=0;i<measure.size();i++){
+        measure[i] = Y[i]-scale*(exp(-(pow((X[i]*DDC), alpha))));
+      }
+      break;
+    }
+    case Gamma:
+    {
+      float scale = parameters[0],
+        k = parameters[1], theta = parameters[2];
+
+      for(int i=0;i<measure.size();i++){
+        measure[i] = Y[i]-scale/(pow((1+X[i]*theta), k));
+      }
+      break;
+    }
     default:
       abort(); // not implemented
     }
@@ -457,6 +433,8 @@ public:
     case MonoExponential: return 2;
     case BiExponential: return 4;
     case Kurtosis: return 3;
+    case StretchedExponential: return 3;
+    case Gamma: return 3;
     default: return 0; // should never get here
     }
   }
@@ -485,17 +463,6 @@ private:
   Model modelType;
   ParametersType initialValue;
   std::vector<std::string> parametersMeaning;
-
-  int constraintFunc(ValueType x) const
-  {
-    if (x<0||x>1)
-      return 1;
-    else
-      return 0;
-
-  };
-
-
 };
 
 // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
@@ -662,6 +629,10 @@ int main( int argc, char * argv[])
     modelType = DecayCostFunction::MonoExponential;
   else if(modelName == "Kurtosis")
     modelType = DecayCostFunction::Kurtosis;
+  else if(modelName == "StretchedExponential")
+    modelType = DecayCostFunction::StretchedExponential;
+  else if(modelName == "Gamma")
+    modelType = DecayCostFunction::Gamma;
   else {
     std::cerr << "ERROR: Unknown model type specified!" << std::endl;
     return -1;
@@ -684,7 +655,16 @@ int main( int argc, char * argv[])
     initialValue[0] = kurtosisInitParameters[0];
     initialValue[1] = kurtosisInitParameters[1];
     initialValue[2] = kurtosisInitParameters[2];
+  } else if(modelName == "StretchedExponential") {
+    initialValue[0] = stretchedExpInitParameters[0];
+    initialValue[1] = stretchedExpInitParameters[1];
+    initialValue[2] = stretchedExpInitParameters[2];
+  } else if(modelName == "Gamma") {
+    initialValue[0] = gammaInitParameters[0];
+    initialValue[1] = gammaInitParameters[1];
+    initialValue[2] = gammaInitParameters[2];
   }
+
   costFunction->SetInitialValues(initialValue);
 
   parameterMapVector.resize(costFunction->GetNumberOfParameters());
@@ -802,11 +782,23 @@ int main( int argc, char * argv[])
           parameterMapItVector[2].Set(finalPosition[2]*1e+6);
           break;
         }
-      case DecayCostFunction::MonoExponential:{
-        parameterMapItVector[0].Set(finalPosition[0]);
-        parameterMapItVector[1].Set(finalPosition[1]*1e+6);
-        break;
-      }
+        case DecayCostFunction::MonoExponential:{
+          parameterMapItVector[0].Set(finalPosition[0]);
+          parameterMapItVector[1].Set(finalPosition[1]*1e+6);
+          break;
+        }
+        case DecayCostFunction::StretchedExponential:{
+          parameterMapItVector[0].Set(finalPosition[0]);
+          parameterMapItVector[1].Set(finalPosition[1]*1e+6); // DDC
+          parameterMapItVector[2].Set(finalPosition[2]); // alpha
+          break;
+        }
+        case DecayCostFunction::Gamma:{
+          parameterMapItVector[0].Set(finalPosition[0]);
+          parameterMapItVector[1].Set(finalPosition[1]); // k
+          parameterMapItVector[2].Set(finalPosition[2]); // theta
+          break;
+        }
 
       default: abort();
       }
@@ -837,28 +829,43 @@ int main( int argc, char * argv[])
   }
 
   switch(modelType){
-  case DecayCostFunction::BiExponential:{
-    if(fastDiffFractionMapFileName.size())
-      SaveMap(parameterMapVector[1], fastDiffFractionMapFileName);
-    if(slowDiffMapFileName.size())
-      SaveMap(parameterMapVector[2], slowDiffMapFileName);
-    if(fastDiffMapFileName.size())
-      SaveMap(parameterMapVector[3], fastDiffMapFileName);
-    break;
-  }
-  case DecayCostFunction::Kurtosis:{
-    if(kurtosisMapFileName.size())
-      SaveMap(parameterMapVector[1], kurtosisMapFileName);
-    if(kurtosisDiffMapFileName.size())
-      SaveMap(parameterMapVector[2], kurtosisDiffMapFileName);
-    break;
-  }
-  case DecayCostFunction::MonoExponential:{
-    if(adcMapFileName.size())
-      SaveMap(parameterMapVector[1], adcMapFileName);
-    break;
-  }
-  default:abort();
+    case DecayCostFunction::BiExponential:{
+      if(fastDiffFractionMapFileName.size())
+        SaveMap(parameterMapVector[1], fastDiffFractionMapFileName);
+      if(slowDiffMapFileName.size())
+        SaveMap(parameterMapVector[2], slowDiffMapFileName);
+      if(fastDiffMapFileName.size())
+        SaveMap(parameterMapVector[3], fastDiffMapFileName);
+      break;
+    }
+    case DecayCostFunction::Kurtosis:{
+      if(kurtosisMapFileName.size())
+        SaveMap(parameterMapVector[1], kurtosisMapFileName);
+      if(kurtosisDiffMapFileName.size())
+        SaveMap(parameterMapVector[2], kurtosisDiffMapFileName);
+      break;
+    }
+    case DecayCostFunction::MonoExponential:{
+      if(adcMapFileName.size())
+        SaveMap(parameterMapVector[1], adcMapFileName);
+      break;
+    }
+    case DecayCostFunction::StretchedExponential:{
+      if(DDCMapFileName.size())
+        SaveMap(parameterMapVector[1], DDCMapFileName);
+      if(alphaMapFileName.size())
+        SaveMap(parameterMapVector[2], alphaMapFileName);
+      break;
+    }
+    case DecayCostFunction::Gamma:{
+      if(thetaMapFileName.size())
+        SaveMap(parameterMapVector[1], thetaMapFileName);
+      if(kMapFileName.size())
+        SaveMap(parameterMapVector[2], kMapFileName);
+      break;
+    }
+
+    default:abort();
   }
 
   if(rsqrVolumeFileName.size())

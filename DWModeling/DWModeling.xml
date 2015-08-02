@@ -29,6 +29,8 @@
       <element>MonoExponential</element>
       <element>BiExponential</element>
       <element>Kurtosis</element>
+      <element>Gamma</element>
+      <element>StretchedExponential</element>
     </string-enumeration>
 
     <image type="label">
@@ -138,6 +140,46 @@
     </image>
   </parameters>
 
+  <parameters>
+   <label>Gamma model outputs</label>
+   <description>See Oshio et al. 2014</description>
+   <image>
+     <name>thetaMapFileName</name>
+     <longflag>theta</longflag>
+     <label>Theta parameter map</label>
+     <channel>output</channel>
+     <description>Theta parameter of the gamma model</description>
+   </image>
+
+   <image>
+     <name>kMapFileName</name>
+     <longflag>k</longflag>
+     <label>k map</label>
+     <channel>output</channel>
+     <description>k map of the gamma model</description>
+   </image>
+  </parameters>
+
+  <parameters>
+   <label>Stretched exponential model outputs</label>
+   <description>See Bennett et al. 2003</description>
+   <image>
+     <name>DDCMapFileName</name>
+     <longflag>ddc</longflag>
+     <label>DDC map</label>
+     <channel>output</channel>
+     <description>Distributed Diffusion Coefficient map</description>
+   </image>
+
+   <image>
+     <name>alphaMapFileName</name>
+     <longflag>alpha</longflag>
+     <label>Stretching parameter map</label>
+     <channel>output</channel>
+     <description>Stretching parameter (alpha) map</description>
+   </image>
+  </parameters>
+
   <parameters advanced="true">
     <label>Initialization</label>
     <description>Model-specific initial parameters</description>
@@ -164,6 +206,22 @@
       <longflag>kurtosisInitParameters</longflag>
       <description>List of initial model parameters in the following format (all numbers are floating point):initialScale,initialKurtosis,initialKurtosisDiffusion</description>
       <default>0,1,0.0015</default>
+    </float-vector>
+
+    <float-vector>
+      <name>stretchedExpInitParameters</name>
+      <label>Stretched exponential model parameters</label>
+      <longflag>stretchedExpInitParameters</longflag>
+      <description>List of initial model parameters in the following format (all numbers are floating point):initialScale,initialDDC,initialAlpha</description>
+      <default>0,0.0017,0.7</default>
+    </float-vector>
+
+    <float-vector>
+      <name>gammaInitParameters</name>
+      <label>Gamma model</label>
+      <longflag>gammaInitParameters</longflag>
+      <description>List of initial model parameters in the following format (all numbers are floating point):initialScale,initialK,initialTheta</description>
+      <default>0,1.5,0.002</default>
     </float-vector>
 
   </parameters>
