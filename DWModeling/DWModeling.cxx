@@ -282,7 +282,7 @@ public:
         alpha = parameters[2];
 
       for(int i=0;i<measure.size();i++){
-        measure[i] = scale*(exp(-(pow((X[i]*DDC), alpha))));
+        measure[i] = scale*(exp(-(pow(double(X[i]*DDC), double(alpha)))));
       }
       break;
     }
@@ -292,7 +292,7 @@ public:
         k = parameters[1], theta = parameters[2];
 
       for(int i=0;i<measure.size();i++){
-        measure[i] = scale/(pow((1+X[i]*theta), k));
+        measure[i] = scale/(pow(double(1+X[i]*theta), double(k)));
       }
       break;
     }
@@ -336,14 +336,14 @@ public:
       float scale = parameters[0],
         DDC = parameters[1],
         alpha = parameters[2];
-        measure = scale*(exp(-(pow((x*DDC), alpha))));
+        measure = scale*(exp(-(pow(double(x*DDC), double(alpha)))));
       break;
     }
     case Gamma:
     {
       float scale = parameters[0],
         k = parameters[1], theta = parameters[2];
-      measure = scale/(pow((1+x*theta), k));
+      measure = scale/(pow(double(1+x*theta), double(k)));
       break;
     }
     default:
@@ -400,7 +400,7 @@ public:
         alpha = parameters[2];
 
       for(int i=0;i<measure.size();i++){
-        measure[i] = Y[i]-scale*(exp(-(pow((X[i]*DDC), alpha))));
+        measure[i] = Y[i]-scale*(exp(-(pow(double(X[i]*DDC), double(alpha)))));
       }
       break;
     }
@@ -410,7 +410,7 @@ public:
         k = parameters[1], theta = parameters[2];
 
       for(int i=0;i<measure.size();i++){
-        measure[i] = Y[i]-scale/(pow((1+X[i]*theta), k));
+        measure[i] = Y[i]-scale/(pow(double(1+X[i]*theta), double(k)));
       }
       break;
     }
