@@ -667,8 +667,16 @@ int main( int argc, char * argv[])
 
   costFunction->SetInitialValues(initialValue);
 
-  parameterMapVector.resize(costFunction->GetNumberOfParameters());
-  for(int i=0;i<costFunction->GetNumberOfParameters();i++){
+  unsigned numberOfMaps;
+  if(modelName == "Gamma") {
+    // include computed mode map as output
+    numberOfMaps = costFunction->GetNumberOfParameters()+1;
+  } else {
+    numberOfMaps = costFunction->GetNumberOfParameters();
+  }
+  parameterMapVector.resize(numberOfMaps);
+
+  for(int i=0;i<numberOfMaps;i++){
     parameterMapVector[i] = MapVolumeType::New();
     parameterMapVector[i]->SetRegions(maskVolume->GetLargestPossibleRegion());
     parameterMapVector[i]->Allocate();
@@ -796,7 +804,8 @@ int main( int argc, char * argv[])
         case DecayCostFunction::Gamma:{
           parameterMapItVector[0].Set(finalPosition[0]);
           parameterMapItVector[1].Set(finalPosition[1]); // k
-          parameterMapItVector[2].Set(finalPosition[2]); // theta
+          parameterMapItVector[2].Set(finalPosition[2]*1e+6); // theta
+          parameterMapItVector[3].Set((finalPosition[1]-1)*finalPosition[2]); // mode
           break;
         }
 
@@ -859,9 +868,11 @@ int main( int argc, char * argv[])
     }
     case DecayCostFunction::Gamma:{
       if(thetaMapFileName.size())
-        SaveMap(parameterMapVector[1], thetaMapFileName);
+        SaveMap(parameterMapVector[1], kMapFileName);
       if(kMapFileName.size())
-        SaveMap(parameterMapVector[2], kMapFileName);
+        SaveMap(parameterMapVector[2], thetaMapFileName);
+      if(modeMapFileName.size())
+        SaveMap(parameterMapVector[3], modeMapFileName);
       break;
     }
 

@@ -158,6 +158,15 @@
      <channel>output</channel>
      <description>k map of the gamma model</description>
    </image>
+
+   <image>
+     <name>modeMapFileName</name>
+     <longflag>mode</longflag>
+     <label>Mode map</label>
+     <channel>output</channel>
+     <description>Mode map of the gamma model ( (k-1)*theta )</description>
+   </image>
+ 
   </parameters>
 
   <parameters>
