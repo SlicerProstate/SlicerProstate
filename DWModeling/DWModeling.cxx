@@ -831,7 +831,7 @@ int main( int argc, char * argv[])
       }
     }
 
-    for(int i=0;i<costFunction->GetNumberOfParameters();i++){
+    for(int i=0;i<numberOfMaps;i++){
       ++parameterMapItVector[i];
     }
     ++rsqrIt;++mvIt;++fittedIt;
