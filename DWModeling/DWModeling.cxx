@@ -101,7 +101,8 @@ public:
     BiExponential = 1,
     Kurtosis = 2,
     StretchedExponential = 3,
-    Gamma = 4
+    Gamma = 4,
+    StretchedExponentialMod = 5,
   };
 
   enum { SpaceDimension =  3 };
@@ -171,6 +172,28 @@ public:
       // the quantity derived from fitting the stretched-exponential
       // function to the data
       parametersMeaning.push_back("Distributed Diffusion Coefficient (DDC)");
+      // Stretching parameter between 0 and 1 characterizing deviation of the
+      // signal attennuation from the monoexponential behavior
+      parametersMeaning.push_back("Alpha");
+
+      break;
+
+    case StretchedExponentialMod:
+      initialValue = ParametersType(3);
+      initialValue[0] = 0;
+      initialValue[1] = pow(0.0017,0.7);
+      initialValue[2] = 0.7;
+
+      parametersMeaning.clear();
+      // See Bennett et al. 2003
+      // Bennett KM, Schmainda KM, Bennett RT, Rowe DB, Lu H, Hyde JS.
+      // Characterization of continuously distributed cortical water diffusion
+      // rates with a stretched-exponential model.
+      // Magn Reson Med. 2003;50: 727–734. doi:10.1002/mrm.10581
+      parametersMeaning.push_back("Scale");
+      // the quantity derived from fitting the stretched-exponential
+      // function to the data
+      parametersMeaning.push_back("Distributed Diffusion Coefficient (DDC) to the power of alpha");
       // Stretching parameter between 0 and 1 characterizing deviation of the
       // signal attennuation from the monoexponential behavior
       parametersMeaning.push_back("Alpha");
@@ -286,6 +309,18 @@ public:
       }
       break;
     }
+
+    case StretchedExponentialMod:{
+      float scale = parameters[0],
+        DDC = parameters[1],
+        alpha = parameters[2];
+
+      for(int i=0;i<measure.size();i++){
+        measure[i] = scale*(exp(-(pow(double(X[i]), double(alpha))*DDC)));
+      }
+      break;
+    }
+
     case Gamma:
     {
       float scale = parameters[0],
@@ -339,6 +374,15 @@ public:
         measure = scale*(exp(-(pow(double(x*DDC), double(alpha)))));
       break;
     }
+
+    case StretchedExponentialMod:{
+      float scale = parameters[0],
+        DDC = parameters[1],
+        alpha = parameters[2];
+        measure = scale*(exp(-(pow(double(x), double(alpha)))*DDC));
+      break;
+    }
+
     case Gamma:
     {
       float scale = parameters[0],
@@ -404,6 +448,18 @@ public:
       }
       break;
     }
+
+    case StretchedExponentialMod:{
+      float scale = parameters[0],
+        DDC = parameters[1],
+        alpha = parameters[2];
+
+      for(int i=0;i<measure.size();i++){
+        measure[i] = Y[i]-scale*(exp(-(pow(double(X[i]), double(alpha))*DDC)));
+      }
+      break;
+    }
+
     case Gamma:
     {
       float scale = parameters[0],
@@ -434,6 +490,7 @@ public:
     case BiExponential: return 4;
     case Kurtosis: return 3;
     case StretchedExponential: return 3;
+    case StretchedExponentialMod: return 3;
     case Gamma: return 3;
     default: return 0; // should never get here
     }
@@ -631,6 +688,8 @@ int main( int argc, char * argv[])
     modelType = DecayCostFunction::Kurtosis;
   else if(modelName == "StretchedExponential")
     modelType = DecayCostFunction::StretchedExponential;
+  else if(modelName == "StretchedExponentialMod")
+    modelType = DecayCostFunction::StretchedExponentialMod;
   else if(modelName == "Gamma")
     modelType = DecayCostFunction::Gamma;
   else {
@@ -659,6 +718,10 @@ int main( int argc, char * argv[])
     initialValue[0] = stretchedExpInitParameters[0];
     initialValue[1] = stretchedExpInitParameters[1];
     initialValue[2] = stretchedExpInitParameters[2];
+  } else if(modelName == "StretchedExponentialMod") {
+    initialValue[0] = stretchedExpModInitParameters[0];
+    initialValue[1] = pow(stretchedExpModInitParameters[1],stretchedExpModInitParameters[2]);
+    initialValue[2] = stretchedExpModInitParameters[2];
   } else if(modelName == "Gamma") {
     initialValue[0] = gammaInitParameters[0];
     initialValue[1] = gammaInitParameters[1];
@@ -801,6 +864,13 @@ int main( int argc, char * argv[])
           parameterMapItVector[2].Set(finalPosition[2]); // alpha
           break;
         }
+        case DecayCostFunction::StretchedExponentialMod:{
+          parameterMapItVector[0].Set(finalPosition[0]);
+          parameterMapItVector[1].Set(pow(finalPosition[1],1./finalPosition[2])*1e+6); // DDC
+          parameterMapItVector[2].Set(finalPosition[2]); // alpha
+          break;
+        }
+
         case DecayCostFunction::Gamma:{
           parameterMapItVector[0].Set(finalPosition[0]);
           parameterMapItVector[1].Set(finalPosition[1]); // k
@@ -864,6 +934,13 @@ int main( int argc, char * argv[])
         SaveMap(parameterMapVector[1], DDCMapFileName);
       if(alphaMapFileName.size())
         SaveMap(parameterMapVector[2], alphaMapFileName);
+      break;
+    }
+    case DecayCostFunction::StretchedExponentialMod:{
+      if(DDCMapModFileName.size())
+        SaveMap(parameterMapVector[1], DDCMapModFileName);
+      if(alphaMapModFileName.size())
+        SaveMap(parameterMapVector[2], alphaMapModFileName);
       break;
     }
     case DecayCostFunction::Gamma:{

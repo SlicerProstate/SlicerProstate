@@ -31,6 +31,7 @@
       <element>Kurtosis</element>
       <element>Gamma</element>
       <element>StretchedExponential</element>
+      <element>StretchedExponentialMod</element>
     </string-enumeration>
 
     <image type="label">
@@ -166,7 +167,7 @@
      <channel>output</channel>
      <description>Mode map of the gamma model ( (k-1)*theta )</description>
    </image>
- 
+
   </parameters>
 
   <parameters>
@@ -186,6 +187,26 @@
      <label>Stretching parameter map</label>
      <channel>output</channel>
      <description>Stretching parameter (alpha) map</description>
+   </image>
+  </parameters>
+
+  <parameters>
+   <label>Stretched exponential modified model outputs</label>
+   <description>The difference of this model to the other stretched exponential model is in fitting DDC^alpha as a model parameter. It was hypothesized that this may improve the stability of the fit. In the output map, DDC is factored back out from the fitted DDC^alpha.</description>
+   <image>
+     <name>DDCMapModFileName</name>
+     <longflag>ddcMod</longflag>
+     <label>DDC map modified</label>
+     <channel>output</channel>
+     <description>Distributed Diffusion Coefficient modified map</description>
+   </image>
+
+   <image>
+     <name>alphaMapModFileName</name>
+     <longflag>alphaMod</longflag>
+     <label>Stretching parameter modified map</label>
+     <channel>output</channel>
+     <description>Stretching parameter (alpha) modified map</description>
    </image>
   </parameters>
 
@@ -221,6 +242,14 @@
       <name>stretchedExpInitParameters</name>
       <label>Stretched exponential model parameters</label>
       <longflag>stretchedExpInitParameters</longflag>
+      <description>List of initial model parameters in the following format (all numbers are floating point):initialScale,initialDDC,initialAlpha</description>
+      <default>0,0.0017,0.7</default>
+    </float-vector>
+
+    <float-vector>
+      <name>stretchedExpModInitParameters</name>
+      <label>Stretched exponential mod model parameters</label>
+      <longflag>stretchedExpModInitParameters</longflag>
       <description>List of initial model parameters in the following format (all numbers are floating point):initialScale,initialDDC,initialAlpha</description>
       <default>0,0.0017,0.7</default>
     </float-vector>
