@@ -125,9 +125,9 @@ public:
       // initialize parameter meaning (store this in NRRD? save units?)
       parametersMeaning.clear();
       parametersMeaning.push_back("Scale");
-      parametersMeaning.push_back("Fast diffusion fraction");
+      parametersMeaning.push_back("Fast diffusion (perfusion) fraction");
       parametersMeaning.push_back("Slow diffusion coefficient");
-      parametersMeaning.push_back("Fast diffusion coefficient");
+      parametersMeaning.push_back("Fast diffusion (perfusion) coefficient");
 
       break;
     case Kurtosis:
