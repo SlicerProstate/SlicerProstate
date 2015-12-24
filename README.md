@@ -22,6 +22,9 @@ Current modules include:
 * [Quad Edge Surface
   Mesher](http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Modules/QuadEdgeSurfaceMesher):
   utility to decimate and smooth triangular surface meshes
+* [DWModeling](http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Modules/DWModeling):
+  fitting of the various models to Diffusion Weighted MRI trace images
+
 
 This extension is work in progress, and we are planning to add other modules relevant to prostate cancer imaging research .... stay tuned.
 
