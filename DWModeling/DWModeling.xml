@@ -73,8 +73,40 @@
     <image>
       <name>rsqrVolumeFileName</name>
       <longflag>rsqrVolume</longflag>
-      <label>Quality of fit volume</label>
-      <description>Output volume containing the R^2 measure of the quality of fit</description>
+      <label>R^2 quality of fit volume</label>
+      <description>Output volume containing the R^2 measure of the quality of fit. This measure is calculated only for the b-values used in the fitting process.</description>
+      <channel>output</channel>
+    </image>
+
+    <image>
+      <name>ssdFittedVolumeFileName</name>
+      <longflag>ssdFittedVolume</longflag>
+      <label>SSD for the fitted b-values</label>
+      <description>Volume with the pixel-wise sum of squared differences (SSD) map that takes into consideration only those b-values that were used in the fitting process</description>
+      <channel>output</channel>
+    </image>
+
+    <image>
+      <name>ssdVolumeFileName</name>
+      <longflag>ssdVolume</longflag>
+      <label>SSD for all b-values</label>
+      <description>Volume with the pixel-wise sum of squared differences (SSD) map that takes into consideration all b-values. Note that this map will be identical to the previous one if the fitting procedure utilized all b-values</description>
+      <channel>output</channel>
+    </image>
+
+    <image>
+      <name>csFittedVolumeFileName</name>
+      <longflag>csFittedVolume</longflag>
+      <label>Chi squared for the fitted b-values</label>
+      <description>Volume with the pixel-wise chi squared map that takes into consideration only those b-values that were used in the fitting process</description>
+      <channel>output</channel>
+    </image>
+
+    <image>
+      <name>csVolumeFileName</name>
+      <longflag>csVolume</longflag>
+      <label>Chi squared for all b-values</label>
+      <description>Volume with the pixel-wise pixel-wise chi squared map that takes into consideration all b-values. Note that this map will be identical to the previous one if the fitting procedure utilized all b-values</description>
       <channel>output</channel>
     </image>
 
@@ -166,7 +198,7 @@
      <channel>output</channel>
      <description>Mode map of the gamma model ( (k-1)*theta )</description>
    </image>
- 
+
   </parameters>
 
   <parameters>

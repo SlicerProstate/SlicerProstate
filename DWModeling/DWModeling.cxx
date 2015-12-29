@@ -690,13 +690,41 @@ int main( int argc, char * argv[])
     parameterMapItVector[i].GoToBegin();
   }
 
-  // R^2 and fitted values volumes are calculated independently of the model
+  // Fitted values and error measure volumes are calculated independently of the model
   MapVolumeType::Pointer rsqrMap = MapVolumeType::New();
   rsqrMap->SetRegions(maskVolume->GetLargestPossibleRegion());
   rsqrMap->Allocate();
   rsqrMap->FillBuffer(0);
   rsqrMap->CopyInformation(maskVolume);
   rsqrMap->FillBuffer(0);
+
+  MapVolumeType::Pointer ssdFittedMap = MapVolumeType::New();
+  ssdFittedMap->SetRegions(maskVolume->GetLargestPossibleRegion());
+  ssdFittedMap->Allocate();
+  ssdFittedMap->FillBuffer(0);
+  ssdFittedMap->CopyInformation(maskVolume);
+  ssdFittedMap->FillBuffer(0);
+
+  MapVolumeType::Pointer ssdMap = MapVolumeType::New();
+  ssdMap->SetRegions(maskVolume->GetLargestPossibleRegion());
+  ssdMap->Allocate();
+  ssdMap->FillBuffer(0);
+  ssdMap->CopyInformation(maskVolume);
+  ssdMap->FillBuffer(0);
+
+  MapVolumeType::Pointer csFittedMap = MapVolumeType::New();
+  csFittedMap->SetRegions(maskVolume->GetLargestPossibleRegion());
+  csFittedMap->Allocate();
+  csFittedMap->FillBuffer(0);
+  csFittedMap->CopyInformation(maskVolume);
+  csFittedMap->FillBuffer(0);
+
+  MapVolumeType::Pointer csMap = MapVolumeType::New();
+  csMap->SetRegions(maskVolume->GetLargestPossibleRegion());
+  csMap->Allocate();
+  csMap->FillBuffer(0);
+  csMap->CopyInformation(maskVolume);
+  csMap->FillBuffer(0);
 
   DuplicatorType::Pointer dup = DuplicatorType::New();
   dup->SetInputImage(inputVectorVolume);
@@ -712,6 +740,10 @@ int main( int argc, char * argv[])
 
   MaskVolumeIteratorType mvIt(maskVolume, maskVolume->GetLargestPossibleRegion());
   MapVolumeIteratorType rsqrIt(rsqrMap, rsqrMap->GetLargestPossibleRegion());
+  MapVolumeIteratorType ssdFittedIt(ssdFittedMap,ssdFittedMap->GetLargestPossibleRegion());
+  MapVolumeIteratorType ssdIt(ssdMap,ssdMap->GetLargestPossibleRegion());
+  MapVolumeIteratorType csFittedIt(csFittedMap,csFittedMap->GetLargestPossibleRegion());
+  MapVolumeIteratorType csIt(csMap,csMap->GetLargestPossibleRegion());
 
   itk::LevenbergMarquardtOptimizer::Pointer optimizer = itk::LevenbergMarquardtOptimizer::New();
 
@@ -815,19 +847,44 @@ int main( int argc, char * argv[])
       // initialize the rsqr map
       // see PkModeling/CLI/itkConcentrationToQuantitativeImageFilter.hxx:452
       {
-        double rms = optimizer->GetOptimizer()->get_end_error();
-        double SSerr = rms*rms*bValuesSelected;
-        double sumSquared = 0.0;
-        double sum = 0.0;
+        // Error measures are calculated separately for those b-values that were
+        // used in the fitting process (*Fitted) and for all of the b-values
+        // available in the data
+        double rmsFitted = optimizer->GetOptimizer()->get_end_error();
+        double SSerrFitted = rmsFitted*rmsFitted*bValuesSelected;
+        double SSerr = 0;
+        double sumSquaredDifferences = 0, sumSquaredDifferencesFitted = 0;
+        double sumSquared = 0.0, sumSquaredFitted = 0;
+        double sum = 0.0, sumFitted = 0;
         double rSquared = 0.0;
 
         for (unsigned int i=0; i < bValuesSelected; ++i){
-          sum += imageValuesPtr[i];
-          sumSquared += (imageValuesPtr[i]*imageValuesPtr[i]);
+          sumFitted += imageValuesPtr[i];
+          sumSquaredFitted += (imageValuesPtr[i]*imageValuesPtr[i]);
+          sumSquaredDifferencesFitted += (vectorVoxel[i]-fittedVoxel[i])*(vectorVoxel[i]-fittedVoxel[i]);
         }
-        double SStot = sumSquared - sum*sum/(double)bValuesSelected;
-        rSquared = 1.0 - (SSerr / SStot);
+
+        for (unsigned int i=0; i < vectorVoxel.GetSize(); ++i){
+          sum += vectorVoxel[i];
+          sumSquared += (vectorVoxel[i]*vectorVoxel[i]);
+          sumSquaredDifferences += (vectorVoxel[i]-fittedVoxel[i])*(vectorVoxel[i]-fittedVoxel[i]);
+        }
+
+        double SStotFitted = sumSquaredFitted - sumFitted*sumFitted/(double)bValuesSelected;
+        double SStot = sumSquared - sum*sum/(double)vectorVoxel.GetSize();
+
+        rSquared = 1.0 - (SSerrFitted / SStotFitted);
+
+        double chiSquaredNormFitted = sumSquaredDifferencesFitted/((double)bValuesSelected-numberOfMaps);
+        double chiSquaredNorm = sumSquaredDifferences/((double)vectorVoxel.GetSize()-numberOfMaps);
+        double chiSquaredFitted = 2.*sqrt(chiSquaredNormFitted);
+        double chiSquared = 2.*sqrt(chiSquaredNorm);
+
         rsqrIt.Set(rSquared);
+        ssdFittedIt.Set(sumSquaredDifferencesFitted);
+        ssdIt.Set(sumSquaredDifferences);
+        csIt.Set(chiSquared);
+        csFittedIt.Set(chiSquaredFitted);
       }
     }
 
@@ -835,6 +892,8 @@ int main( int argc, char * argv[])
       ++parameterMapItVector[i];
     }
     ++rsqrIt;++mvIt;++fittedIt;
+    ++ssdFittedIt;++ssdIt;
+    ++csFittedIt;++csIt;
   }
 
   switch(modelType){
@@ -881,6 +940,15 @@ int main( int argc, char * argv[])
 
   if(rsqrVolumeFileName.size())
     SaveMap(rsqrMap, rsqrVolumeFileName);
+
+  if(ssdFittedVolumeFileName.size())
+    SaveMap(ssdFittedMap, ssdFittedVolumeFileName);
+  if(ssdVolumeFileName.size())
+    SaveMap(ssdMap, ssdVolumeFileName);
+  if(csFittedVolumeFileName.size())
+    SaveMap(csFittedMap, csFittedVolumeFileName);
+  if(csVolumeFileName.size())
+    SaveMap(csMap, csVolumeFileName);
 
   if(fittedVolumeFileName.size()){
     FittedVolumeWriterType::Pointer writer = FittedVolumeWriterType::New();
