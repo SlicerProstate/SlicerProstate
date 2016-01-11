@@ -555,7 +555,7 @@ int main( int argc, char * argv[])
   // Trigger times
   std::vector<float> bValues;
   // list of b-values to be passed to the optimizer
-  float *bValuesPtr, *imageValuesPtr;
+  float *bValuesPtr, *imageValuesPtr, *fittedValuesPtr;
   // "true" for the b-value and measurement pair to be used in fitting
   bool *bValuesMask;
   int bValuesTotal, bValuesSelected;
@@ -602,6 +602,7 @@ int main( int argc, char * argv[])
 
     bValuesPtr = new float[bValuesSelected];
     imageValuesPtr = new float[bValuesSelected];
+    fittedValuesPtr = new float[bValuesSelected];
     int j = 0;
     std::cout << "Will use the following b-values: ";
     for(int i=0;i<bValuesTotal;i++){
@@ -798,11 +799,15 @@ int main( int argc, char * argv[])
 
       itk::LevenbergMarquardtOptimizer::ParametersType finalPosition;
 
+      // fitted vector for all input b-values
       finalPosition = optimizer->GetCurrentPosition();
       for(int i=0;i<fittedVoxel.GetSize();i++){
         fittedVoxel[i] = costFunction->GetFittedValue(finalPosition, bValues[i]);
-        //std::cerr << "Final position: " << finalPosition << std::endl;
-        //std::cout << fittedVoxel[i] << " ";
+      }
+
+      // fitted values for the b-values used in fitting only
+      for(int i=0;i<bValuesSelected;i++){
+        fittedValuesPtr[i] = costFunction->GetFittedValue(finalPosition,bValuesPtr[i]);
       }
 
       //std::cout << std::endl;
@@ -861,7 +866,7 @@ int main( int argc, char * argv[])
         for (unsigned int i=0; i < bValuesSelected; ++i){
           sumFitted += imageValuesPtr[i];
           sumSquaredFitted += (imageValuesPtr[i]*imageValuesPtr[i]);
-          sumSquaredDifferencesFitted += (vectorVoxel[i]-fittedVoxel[i])*(vectorVoxel[i]-fittedVoxel[i]);
+          sumSquaredDifferencesFitted += (imageValuesPtr[i]-fittedValuesPtr[i])*(imageValuesPtr[i]-fittedValuesPtr[i]);
         }
 
         for (unsigned int i=0; i < vectorVoxel.GetSize(); ++i){
