@@ -349,28 +349,26 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     affineTransformNode = slicer.mrmlScene.GetNodeByID(parameterNode.GetAttribute('AffineTransformNodeID'))
     bsplineTransformNode = slicer.mrmlScene.GetNodeByID(parameterNode.GetAttribute('BSplineTransformNodeID'))
 
-    logging.info('Processing started')
-
     # crop the labels
     import SimpleITK as sitk
     import sitkUtils
 
     (bbMin,bbMax) = self.getBoundingBox(fixedLabelNodeID, movingLabelNodeID)
 
-    print("Before preprocessing")
+    logging.info("Before preprocessing")
 
     fixedLabelDistanceMap = self.preProcessLabel(fixedLabelNodeID, bbMin, bbMax)
     parameterNode.SetAttribute('FixedLabelDistanceMapID',fixedLabelDistanceMap.GetID())
     fixedLabelSmoothed = slicer.util.getNode(slicer.mrmlScene.GetNodeByID(fixedLabelNodeID).GetName()+'-Smoothed')
     parameterNode.SetAttribute('FixedLabelSmoothedID',fixedLabelSmoothed.GetID())
 
-    print('Fixed label processing done')
+    logging.info('Fixed label processing done')
 
     movingLabelDistanceMap = self.preProcessLabel(movingLabelNodeID, bbMin, bbMax)
     parameterNode.SetAttribute('MovingLabelDistanceMapID',movingLabelDistanceMap.GetID())
     movingLabelSmoothed = slicer.util.getNode(slicer.mrmlScene.GetNodeByID(movingLabelNodeID).GetName()+'-Smoothed')
     parameterNode.SetAttribute('MovingLabelSmoothedID',movingLabelSmoothed.GetID())
-    print('Moving label processing done')
+    logging.info('Moving label processing done')
 
     # run registration
 
@@ -379,14 +377,14 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
 
     parameterNode.SetAttribute('AffineTransformNodeID',affineTransformNode.GetID())
 
-    print('affineRegistrationCompleted!')
+    logging.info('affineRegistrationCompleted!')
 
     registrationParameters = {'fixedVolume':fixedLabelDistanceMap.GetID(), 'movingVolume':movingLabelDistanceMap.GetID(),'useBSpline':True,'splineGridSize':'3,3,3','numberOfSamples':'10000','costMetric':'MSE','bsplineTransform':bsplineTransformNode.GetID(),'initialTransform':affineTransformNode.GetID()}
     slicer.cli.run(slicer.modules.brainsfit, None, registrationParameters, wait_for_completion=True)
 
     parameterNode.SetAttribute('BSplineTransformNodeID',bsplineTransformNode.GetID())
 
-    print('bsplineRegistrationCompleted!')
+    logging.info('bsplineRegistrationCompleted!')
 
     logging.info('Processing completed')
 
@@ -396,8 +394,6 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     # duplicate moving volume
 
     self.makeSurfaceModels(parameterNode)
-
-    print('Surface name:'+parameterNode.GetAttribute('MovingLabelSurfaceID'))
 
     volumesLogic = slicer.modules.volumes.logic()
     movingImageID = parameterNode.GetAttribute('MovingImageNodeID')
@@ -416,7 +412,6 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     fixedModelDisplayNode = fixedLabelSurface.GetDisplayNode()
     movingModelDisplayNode = movingLabelSurface.GetDisplayNode()
 
-    print('Set slice intersection')
     fixedModelDisplayNode.SetSliceIntersectionVisibility(1)
     fixedModelDisplayNode.SetSliceIntersectionThickness(3)
 
@@ -459,13 +454,13 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     fixedModelID = parameterNode.GetAttribute('FixedLabelSurfaceID')
     if fixedModelID:
       fixedModel = slicer.util.getNode(fixedModelID)
-      print('Reusing existing model: '+fixedModelID+' '+fixedModelID.GetName())
+      logging.info('Reusing existing model: '+fixedModelID+' '+fixedModelID.GetName())
     else:
       fixedModel = slicer.vtkMRMLModelNode()
       slicer.mrmlScene.AddNode(fixedModel)
       fixedModel.SetName(fixedLabel.GetName()+'-surface')
       parameterNode.SetAttribute('FixedLabelSurfaceID',fixedModel.GetID())
-      print('Created a new model: '+fixedModel.GetID()+' '+fixedModel.GetName())
+      logging.info('Created a new model: '+fixedModel.GetID()+' '+fixedModel.GetName())
 
     parameters = {'inputImageName':parameterNode.GetAttribute('FixedLabelSmoothedID'),'outputMeshName':fixedModel.GetID()}
     slicer.cli.run(slicer.modules.quadedgesurfacemesher,None,parameters,wait_for_completion=True)
@@ -474,13 +469,13 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     movingModelID = parameterNode.GetAttribute('MovingLabelSurfaceID')
     if movingModelID:
       movingModel = slicer.util.getNode(movingModelID)
-      print('Reusing existing model: '+movingModelID+' '+movingModelID.GetName())
+      logging.info('Reusing existing model: '+movingModelID+' '+movingModelID.GetName())
     else:      
       movingModel = slicer.vtkMRMLModelNode()
       slicer.mrmlScene.AddNode(movingModel)
       movingModel.SetName(movingLabel.GetName()+'-surface')
       parameterNode.SetAttribute('MovingLabelSurfaceID',movingModel.GetID())
-      print('Created a new model: '+movingModel.GetID()+' '+movingModel.GetName())
+      logging.info('Created a new model: '+movingModel.GetID()+' '+movingModel.GetName())
 
     parameters = {'inputImageName':parameterNode.GetAttribute('MovingLabelSmoothedID'),'outputMeshName':movingModel.GetID()}
     slicer.cli.run(slicer.modules.quadedgesurfacemesher,None,parameters,wait_for_completion=True)
@@ -508,7 +503,7 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
 
     ls.Execute(unionLabelImage,unionLabelImage)
     bb = ls.GetBoundingBox(1)
-    print(str(bb))
+    logging.info('Bounding box:'+str(bb))
 
     size = unionLabelImage.GetSize()
     bbMin = (max(0,bb[0]-30),max(0,bb[2]-30),max(0,bb[4]-5))
@@ -518,39 +513,39 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
 
   def preProcessLabel(self,labelNodeID,bbMin,bbMax):
 
-    print('Label node ID: '+labelNodeID)
+    logging.info('Label node ID: '+labelNodeID)
 
     labelNode = slicer.util.getNode(labelNodeID)
 
     labelNodeAddress = sitkUtils.GetSlicerITKReadWriteAddress(labelNode.GetName())
 
-    print('Label node address: '+str(labelNodeAddress))
+    logging.info('Label node address: '+str(labelNodeAddress))
 
     labelImage = sitk.ReadImage(labelNodeAddress)
 
-    print('Read image: '+str(labelImage))
+    logging.info('Read image: '+str(labelImage))
 
     crop = sitk.CropImageFilter()
     crop.SetLowerBoundaryCropSize(bbMin)
     crop.SetUpperBoundaryCropSize(bbMax)
     croppedImage = crop.Execute(labelImage)
 
-    print('Cropped image done: '+str(croppedImage))
+    logging.info('Cropped image done: '+str(croppedImage))
 
     croppedLabelName = labelNode.GetName()+'-Cropped'
     sitkUtils.PushToSlicer(croppedImage,croppedLabelName,overwrite=True)
-    print('Cropped volume pushed')
+    logging.info('Cropped volume pushed')
 
     croppedLabel = slicer.util.getNode(croppedLabelName)
 
-    print('Smoothed image done')
+    logging.info('Smoothed image done')
 
     smoothLabelName = labelNode.GetName()+'-Smoothed'
     smoothLabel = self.createVolumeNode(smoothLabelName)
 
     # smooth the labels
     smoothingParameters = {'inputImageName':croppedLabel.GetID(), 'outputImageName':smoothLabel.GetID()}
-    print(str(smoothingParameters))
+    logging.info('Smoothing parameters:'+str(smoothingParameters))
     cliNode = slicer.cli.run(slicer.modules.segmentationsmoothing, None, smoothingParameters, wait_for_completion = True)
 
     # crop the bounding box
@@ -564,10 +559,9 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     dt = sitk.SignedMaurerDistanceMapImageFilter()
     dt.SetSquaredDistance(False)
     distanceMapName = labelNode.GetName()+'-DistanceMap'
-    print('Reading smoothed image: '+smoothLabel.GetID())
+    logging.info('Reading smoothed image: '+smoothLabel.GetID())
     smoothLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(smoothLabel.GetName())    
     smoothLabelImage = sitk.ReadImage(smoothLabelAddress)
-    print(smoothLabelAddress)
     distanceImage = dt.Execute(smoothLabelImage)
     sitkUtils.PushToSlicer(distanceImage, distanceMapName, overwrite=True)
 
