@@ -412,10 +412,17 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
 
     # display intersection of the fixed label surface in all slices
     fixedLabelSurface = slicer.mrmlScene.GetNodeByID(parameterNode.GetAttribute('FixedLabelSurfaceID'))
-    modelDisplayNode = fixedLabelSurface.GetDisplayNode()
+    movingLabelSurface = slicer.mrmlScene.GetNodeByID(parameterNode.GetAttribute('MovingLabelSurfaceID'))
+    fixedModelDisplayNode = fixedLabelSurface.GetDisplayNode()
+    movingModelDisplayNode = movingLabelSurface.GetDisplayNode()
+
     print('Set slice intersection')
-    modelDisplayNode.SetSliceIntersectionVisibility(1)
-    modelDisplayNode.SetSliceIntersectionThickness(3)
+    fixedModelDisplayNode.SetSliceIntersectionVisibility(1)
+    fixedModelDisplayNode.SetSliceIntersectionThickness(3)
+
+    movingModelDisplayNode.SetSliceIntersectionVisibility(1)
+    movingModelDisplayNode.SetSliceIntersectionThickness(3)
+
 
     movingImageCloneID = parameterNode.GetAttribute('MovingImageCloneID')
     if movingImageCloneID:
