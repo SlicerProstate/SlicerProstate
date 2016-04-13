@@ -7,6 +7,7 @@ set(MODULE_PYTHON_SCRIPTS
   mixins.py
   helpers.py
   constants.py
+  decorators.py
   )
 
 #set(MODULE_PYTHON_RESOURCES
