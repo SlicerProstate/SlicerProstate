@@ -17,7 +17,8 @@ class SlicerProstateUtils:
     parent.categories = ["Developer Tools.Utils"]
     parent.contributors = ["Christian Herz (SPL)"]
     parent.helpText = """
-
+    This class represents a hidden module which includes a lot of useful
+    helpers, constants, decorators and mixins.
     No module interface here.
     """
     parent.acknowledgementText = """
