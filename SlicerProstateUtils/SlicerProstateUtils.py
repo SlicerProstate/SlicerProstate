@@ -15,6 +15,7 @@ class SlicerProstateUtils:
   def __init__(self, parent):
     parent.title = "SlicerProstate Utils"
     parent.categories = ["Developer Tools.Utils"]
+    parent.hidden = True
     parent.contributors = ["Christian Herz (SPL)"]
     parent.helpText = """
     This class represents a hidden module which includes a lot of useful
