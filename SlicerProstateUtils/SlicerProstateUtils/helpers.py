@@ -405,7 +405,7 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin):
     qt.QWidget.__init__(self, *args)
     self.maximumValue = maximumValue
     self.text = text
-    self.iconPath = os.path.join(os.path.dirname(sys.modules[self.__module__].__file__), 'Resources/Icons')
+    self.iconPath = os.path.join(os.path.dirname(sys.modules[self.__module__].__file__), '../Resources/Icons')
     self.setupIcons()
     self.setLayout(qt.QGridLayout())
     self.setWindowFlags(qt.Qt.WindowStaysOnTopHint | qt.Qt.FramelessWindowHint)
