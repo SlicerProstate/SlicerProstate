@@ -377,3 +377,62 @@ class ModuleLogicMixin(object):
       return extent[1] > 0 and extent[3] > 0 and extent[5] > 0
     except AttributeError:
       return False
+
+
+class ParameterNodeObservationMixin(object):
+  """
+  This class can be used as a mixin for all classes that provide a method getParameterNode like
+  ScriptedLoadableModuleLogic. ParameterNodeObservationMixin provides the possibility to simply
+  observe the parameter node. Custom events can be observed and from your ScriptedLoadableModuleLogic
+  invoked. Originated was this class from slicer.util.VTKObservationMixin
+  """
+
+  @property
+  def parameterNode(self):
+    try:
+      return self._parameterNode
+    except AttributeError:
+      self._parameterNode = self.getParameterNode()
+    return self._parameterNode
+
+  @property
+  def parameterNodeObservations(self):
+    try:
+      return self._parameterNodeObservations
+    except AttributeError:
+      self._parameterNodeObservations = []
+    return self._parameterNodeObservations
+
+  def getParameterNode(self):
+    """If this mixin is used in a ScriptedLoadableModuleLogic
+    inherited class, it should be overwritten with:
+    return ScriptedLoadableModuleLogic.getParameterNode(self)
+    """
+    return NotImplementedError
+
+  def removeObservers(self, method=None):
+    for e, m, g, t in list(self.parameterNodeObservations):
+      if method == m or method is None:
+        self.parameterNode.RemoveObserver(t)
+        self.parameterNodeObservations.remove([e, m, g, t])
+
+  def addObserver(self, event, method, group='none'):
+    if self.hasObserver(event, method):
+      self.removeObserver(event, method)
+    tag = self.parameterNode.AddObserver(event, method)
+    self.parameterNodeObservations.append([event, method, group, tag])
+
+  def removeObserver(self, event, method):
+    for e, m, g, t in self.parameterNodeObservations:
+      if e == event and m == method:
+        self.parameterNode.RemoveObserver(t)
+        self.parameterNodeObservations.remove([e, m, g, t])
+
+  def hasObserver(self, event, method):
+    for e, m, g, t in self.parameterNodeObservations:
+      if e == event and m == method:
+        return True
+    return False
+
+  def invokeEvent(self, event):
+    self.parameterNode.InvokeEvent(event)
