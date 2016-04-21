@@ -1,13 +1,13 @@
 import slicer
 
 
-class SlicerProstateUtilsClass(object):
+class SlicerProstateClass(object):
 
   def __init__(self):
     pass
 
 
-class SlicerProstateUtils:
+class SlicerProstate:
   """
   This class is the 'hook' for slicer to detect and recognize the plugin
   as a loadable scripted module
@@ -16,7 +16,7 @@ class SlicerProstateUtils:
     parent.title = "SlicerProstate Utils"
     parent.categories = ["Developer Tools.Utils"]
     parent.hidden = True
-    parent.contributors = ["Christian Herz (SPL)"]
+    parent.contributors = ["Christian Herz (SPL), Andrey Fedorov (SPL)"]
     parent.helpText = """
     This class represents a hidden module which includes a lot of useful
     helpers, constants, decorators and mixins.
@@ -27,8 +27,4 @@ class SlicerProstateUtils:
     Christian Herz, SPL
     """
 
-    try:
-      slicer.modules.slicerprostate
-    except AttributeError:
-      slicer.modules.slicerprostate = {}
-    slicer.modules.slicerprostate['SlicerProstateUtils'] = SlicerProstateUtilsClass
+    slicer.modules.slicerprostate = SlicerProstateClass

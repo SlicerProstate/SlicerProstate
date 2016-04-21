@@ -1,14 +1,14 @@
 #-----------------------------------------------------------------------------
-set(MODULE_NAME SlicerProstateUtils)
+set(MODULE_NAME SlicerProstate)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
-  ${MODULE_NAME}/__init__.py
-  ${MODULE_NAME}/mixins.py
-  ${MODULE_NAME}/helpers.py
-  ${MODULE_NAME}/constants.py
-  ${MODULE_NAME}/decorators.py
+  ${MODULE_NAME}Utils/__init__.py
+  ${MODULE_NAME}Utils/mixins.py
+  ${MODULE_NAME}Utils/helpers.py
+  ${MODULE_NAME}Utils/constants.py
+  ${MODULE_NAME}Utils/decorators.py
   )
 
 set(MODULE_PYTHON_RESOURCES
