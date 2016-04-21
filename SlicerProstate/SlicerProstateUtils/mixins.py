@@ -434,5 +434,8 @@ class ParameterNodeObservationMixin(object):
         return True
     return False
 
-  def invokeEvent(self, event):
-    self.parameterNode.InvokeEvent(event)
+  def invokeEvent(self, event, callData=None):
+    if callData:
+      self.parameterNode.InvokeEvent(event, callData)
+    else:
+      self.parameterNode.InvokeEvent(event)
