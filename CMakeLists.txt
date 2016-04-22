@@ -22,7 +22,7 @@ add_subdirectory(QuadEdgeSurfaceMesher)
 add_subdirectory(SegmentationSmoothing)
 add_subdirectory(DistanceMapBasedRegistration)
 add_subdirectory(DWModeling)
-add_subdirectory(SlicerProstateUtils)
+add_subdirectory(SlicerProstate)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------
