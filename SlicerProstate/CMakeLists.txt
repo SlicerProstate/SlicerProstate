@@ -9,6 +9,7 @@ set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}Utils/helpers.py
   ${MODULE_NAME}Utils/constants.py
   ${MODULE_NAME}Utils/decorators.py
+  ${MODULE_NAME}Utils/events.py
   )
 
 set(MODULE_PYTHON_RESOURCES

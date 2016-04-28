@@ -1,21 +1,20 @@
 import DICOMLib
 import os, sys
-import slicer, vtk, ctk, qt
+import slicer, vtk, qt
 import xml.dom.minidom, datetime
 from constants import DICOMTAGS
-from mixins import ModuleLogicMixin, ModuleWidgetMixin
+from mixins import ModuleLogicMixin, ModuleWidgetMixin, ParameterNodeObservationMixin
+from events import SlicerProstateEvents
 
 
-class SmartDICOMReceiver(ModuleLogicMixin):
+class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
 
   STATUS_RECEIVING = "Receiving DICOM data"
   STATUS_WAITING = "Waiting for incoming DICOM data"
   STATUS_COMPLETED = "DICOM data receive completed."
 
-  def __init__(self, incomingDataDirectory, receiveFinishedCallback, statusCallback=None):
+  def __init__(self, incomingDataDirectory):
     self.incomingDataDirectory = incomingDataDirectory
-    self.receiveFinishedCallback = receiveFinishedCallback
-    self.statusCallback = slicer.util.showStatusMessage if not statusCallback else statusCallback
     self.storeSCPProcess = None
     self.setupTimers()
     self.reset()
@@ -49,19 +48,23 @@ class SmartDICOMReceiver(ModuleLogicMixin):
 
   def startWatching(self):
     self.currentFileList = self.getFileList(self.incomingDataDirectory)
+    status = self.STATUS_WAITING
     if self.lastFileCount != len(self.currentFileList):
       status = self.getReceivingStatusMessage(self.STATUS_RECEIVING) if self.showDots else self.STATUS_RECEIVING
-      self.statusCallback(status)
       self.dataHasBeenReceived = True
       self.lastFileCount = len(self.currentFileList)
       self.watchTimer.start()
     elif self.dataHasBeenReceived:
       self.lastFileCount = len(self.currentFileList)
-      self.statusCallback(self.STATUS_COMPLETED)
+      status = self.STATUS_COMPLETED
       self.dataReceivedTimer.start()
     else:
-      self.statusCallback(self.STATUS_WAITING)
       self.watchTimer.start()
+    self.updateStatus(status)
+
+  def updateStatus(self, text):
+    slicer.util.showStatusMessage(text)
+    self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, text)
 
   def getReceivingStatusMessage(self, message):
     if self.timerIterations == 4:
@@ -82,7 +85,7 @@ class SmartDICOMReceiver(ModuleLogicMixin):
       newFileList = list(set(self.currentFileList) - set(self.startingFileList))
       self.startingFileList = self.currentFileList
       self.lastFileCount = len(self.startingFileList)
-      self.receiveFinishedCallback(newFileList=newFileList)
+      self.invokeEvent(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, newFileList.__str__())
     self.watchTimer.start()
 
 
@@ -330,32 +333,42 @@ class IncomingDataMessageBox(ExtendedQMessageBox):
     self.setDefaultButton(trackButton)
 
 
-class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin):
+class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin):
 
-  def __init__(self, callback=None, title="Receiving image data", skipText="Skip", cancelText="Cancel", *args):
+  def __init__(self, incomingDataDirectory, title="Receiving image data",
+               skipText="Skip", cancelText="Cancel", *args):
     super(IncomingDataWindow, self).__init__(*args)
     self.setWindowTitle(title)
-    self.callback = callback if callback else None
     self.setWindowFlags(qt.Qt.CustomizeWindowHint | qt.Qt.WindowTitleHint | qt.Qt.WindowStaysOnTopHint)
     self.skipButtonText = skipText
     self.cancelButtonText = cancelText
     self.setup()
+    self.dicomReceiver = SmartDICOMReceiver(incomingDataDirectory=incomingDataDirectory)
+    self.dicomReceiver.addObserver(SlicerProstateEvents.StatusChangedEvent, self.onStatusChanged)
+    self.dicomReceiver.addObserver(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, self.onReceiveFinished)
 
-  def setText(self, text):
-    self.skipButton.enabled = text in SmartDICOMReceiver.STATUS_WAITING
-    self.textLabel.text = text
+  def __del__(self):
+    if self.dicomReceiver:
+      self.dicomReceiver.removeObservers()
+
+  @vtk.calldata_type(vtk.VTK_STRING)
+  def onStatusChanged(self, caller, event, callData):
+    self.skipButton.enabled = callData in self.dicomReceiver.STATUS_WAITING
+    self.textLabel.text = callData
 
   def show(self, disableWidget=None):
     self.disabledWidget = disableWidget
     if disableWidget:
       disableWidget.enabled = False
     qt.QWidget.show(self)
+    self.dicomReceiver.start(showDots=False)
 
   def hide(self):
     if self.disabledWidget:
       self.disabledWidget.enabled = True
       self.disabledWidget = None
     qt.QWidget.hide(self)
+    self.dicomReceiver.stop()
 
   def setup(self):
     self.setLayout(qt.QGridLayout())
@@ -383,12 +396,18 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin):
     self.buttonGroup.connect('buttonClicked(QAbstractButton*)', self.onButtonClicked)
 
   def onButtonClicked(self, button):
-    if self.callback:
-      self.callback(button)
     self.hide()
+    if button is self.skipButton:
+      self.invokeEvent(SlicerProstateEvents.IncomingDataSkippedEvent)
+    else:
+      self.invokeEvent(SlicerProstateEvents.IncomingDataCanceledEvent)
+
+  def onReceiveFinished(self, caller, event):
+    self.hide()
+    self.invokeEvent(SlicerProstateEvents.IncomingDataReceiveFinishedEvent)
 
 
-class RatingWindow(qt.QWidget, ModuleWidgetMixin):
+class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin):
 
   @property
   def maximumValue(self):
@@ -423,13 +442,12 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin):
     self.filledStarIcon = self.createIcon("icon-star-filled.png", self.iconPath)
     self.unfilledStarIcon = self.createIcon("icon-star-unfilled.png", self.iconPath)
 
-  def show(self, disableWidget=None, callback=None):
+  def show(self, disableWidget=None):
     self.disabledWidget = disableWidget
     if disableWidget:
       disableWidget.enabled = False
     qt.QWidget.show(self)
     self.ratingScore = None
-    self.callback = callback
 
   def setupElements(self):
     self.layout().addWidget(qt.QLabel(self.text), 0, 0)
@@ -479,15 +497,14 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin):
       if obj is button:
         break
     if self.showRatingValue:
-      self.ratingLabel.setText(str(ratingValue))
+      self.ratingLabel.onStatusChanged(str(ratingValue))
 
   def onRatingButtonClicked(self, buttonId):
     self.ratingScore = buttonId
     if self.disabledWidget:
       self.disabledWidget.enabled = True
       self.disabledWidget = None
-    if self.callback:
-      self.callback(self.ratingScore)
+    self.invokeEvent(SlicerProstateEvents.RatingWindowClosedEvent, str(self.ratingScore))
     self.hide()
 
 

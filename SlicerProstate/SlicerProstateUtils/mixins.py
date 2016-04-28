@@ -185,7 +185,6 @@ class ModuleWidgetMixin(object):
           c.hide()
 
 
-
 class ModuleLogicMixin(object):
 
   @staticmethod
@@ -392,7 +391,7 @@ class ParameterNodeObservationMixin(object):
     try:
       return self._parameterNode
     except AttributeError:
-      self._parameterNode = self.getParameterNode()
+      self._parameterNode = self.getParameterNode() if hasattr(self, "getParameterNode") else self._getParameterNode()
     return self._parameterNode
 
   @property
@@ -403,12 +402,10 @@ class ParameterNodeObservationMixin(object):
       self._parameterNodeObservations = []
     return self._parameterNodeObservations
 
-  def getParameterNode(self):
-    """If this mixin is used in a ScriptedLoadableModuleLogic
-    inherited class, it should be overwritten with:
-    return ScriptedLoadableModuleLogic.getParameterNode(self)
-    """
-    return NotImplementedError
+  def _getParameterNode(self):
+    parameterNode = slicer.vtkMRMLScriptedModuleNode()
+    slicer.mrmlScene.AddNode(parameterNode)
+    return parameterNode
 
   def removeObservers(self, method=None):
     for e, m, g, t in list(self.parameterNodeObservations):
