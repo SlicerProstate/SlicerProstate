@@ -672,7 +672,7 @@ class DICOMBasedInformationWatchBox(FileBasedInformationWatchBox):
       self.setInformation(attribute.name, value, toolTip=value)
 
 
-class CustomTargetTableModel(qt.QAbstractTableModel):
+class CustomTargetTableModel(qt.QAbstractTableModel, ParameterNodeObservationMixin):
 
   COLUMN_NAME = 'Name'
   COLUMN_2D_DISTANCE = 'Distance 2D[mm]'
@@ -717,11 +717,6 @@ class CustomTargetTableModel(qt.QAbstractTableModel):
     self.zFrameDepths = {}
     self.zFrameHole = {}
     self.observer = None
-    self._targetModifiedCallback = None
-
-  def setTargetModifiedCallback(self, func):
-    assert hasattr(func, '__call__')
-    self._targetModifiedCallback = func
 
   def headerData(self, col, orientation, role):
     if orientation == qt.Qt.Horizontal and role in [qt.Qt.DisplayRole, qt.Qt.ToolTipRole]:
@@ -790,11 +785,10 @@ class CustomTargetTableModel(qt.QAbstractTableModel):
       self.computeZFrameHole(index, pos)
 
     self.dataChanged(self.index(0, 3), self.index(self.rowCount()-1, 4))
-    if self._targetModifiedCallback:
-      self._targetModifiedCallback()
+    self.invokeEvent(vtk.vtkCommand.ModifiedEvent)
 
 
-class TargetCreationWidget(ModuleWidgetMixin):
+class TargetCreationWidget(ModuleWidgetMixin, ParameterNodeObservationMixin):
 
   HEADERS = ["Name","Delete"]
   MODIFIED_EVENT = "ModifiedEvent"
@@ -807,24 +801,23 @@ class TargetCreationWidget(ModuleWidgetMixin):
   @currentNode.setter
   def currentNode(self, node):
     if self._currentNode:
-      self.removeObservers()
+      self.removeTargetListObservers()
     self._currentNode = node
     if node:
       self.placeWidget.setCurrentNode(node)
-      self.addObservers()
+      self.addTargetListObservers()
     else:
       selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
       selectionNode.SetReferenceActivePlaceNodeID(None)
     self.updateTable()
 
-  def __init__(self, parent, listModifiedCallback=None):
+  def __init__(self, parent):
     self.parent = parent
     self.connectedButtons = []
     self.fiducialsNodeObservers = []
     self.setup()
     self._currentNode = None
     self.markupsLogic = slicer.modules.markups.logic()
-    self.listModifiedCallback = listModifiedCallback
 
   def setup(self):
     self.placeWidget = slicer.qSlicerMarkupsPlaceWidget()
@@ -868,13 +861,13 @@ class TargetCreationWidget(ModuleWidgetMixin):
       button.clicked.disconnect(self.handleDeleteButtonClicked)
     self.connectedButtons = []
 
-  def removeObservers(self):
+  def removeTargetListObservers(self):
     if self._currentNode and len(self.fiducialsNodeObservers) > 0:
       for observer in self.fiducialsNodeObservers:
         self._currentNode.RemoveObserver(observer)
     self.fiducialsNodeObservers = []
 
-  def addObservers(self):
+  def addTargetListObservers(self):
     if self.currentNode:
       for event in self.FIDUCIAL_LIST_OBSERVED_EVENTS:
         self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
@@ -907,8 +900,7 @@ class TargetCreationWidget(ModuleWidgetMixin):
   def onFiducialsUpdated(self, caller, event):
     if caller.IsA("vtkMRMLMarkupsFiducialNode") and event == self.MODIFIED_EVENT:
       self.updateTable()
-      if self.listModifiedCallback:
-        self.listModifiedCallback()
+      self.invokeEvent(vtk.vtkCommand.ModifiedEvent)
 
   def onCellChanged(self, row, col):
     if col == 0:
