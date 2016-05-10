@@ -43,6 +43,14 @@ class ModuleWidgetMixin(object):
         displayNode.AddViewNodeID(sliceNode.GetID())
 
   @staticmethod
+  def removeViewNodeIDs(node, sliceNodes):
+    displayNode = node.GetDisplayNode()
+    if displayNode:
+      displayNode.RemoveAllViewNodeIDs()
+      for sliceNode in sliceNodes:
+        displayNode.RemoveViewNodeID(sliceNode.GetID())
+
+  @staticmethod
   def jumpSliceNodeToTarget(sliceNode, targetNode, index):
     point = [0,0,0,0]
     targetNode.GetMarkupPointWorld(index, 0, point)
@@ -57,7 +65,7 @@ class ModuleWidgetMixin(object):
   def getSetting(self, setting, moduleName=None):
     moduleName = moduleName if moduleName else self.moduleName
     settings = qt.QSettings()
-    setting = settings.value(self.moduleName + '/' + setting)
+    setting = settings.value(moduleName + '/' + setting)
     return setting
 
   def setSetting(self, setting, value, moduleName=None):
