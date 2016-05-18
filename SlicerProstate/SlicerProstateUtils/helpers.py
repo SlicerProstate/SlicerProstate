@@ -227,6 +227,7 @@ class SliceAnnotation(object):
   def _removeActor(self):
     try:
       self.renderer.RemoveActor(self.textActor)
+      self.update()
     except:
       pass
 
@@ -497,7 +498,7 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin)
       if obj is button:
         break
     if self.showRatingValue:
-      self.ratingLabel.onStatusChanged(str(ratingValue))
+      self.ratingLabel.setText(str(ratingValue))
 
   def onRatingButtonClicked(self, buttonId):
     self.ratingScore = buttonId
