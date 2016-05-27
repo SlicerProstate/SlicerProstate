@@ -749,9 +749,10 @@ class CustomTargetTableModel(qt.QAbstractTableModel, ParameterNodeObservationMix
       return self.targetList.GetNthFiducialLabel(row)
     elif (col == 1 or col == 2) and self.cursorPosition and self.computeCursorDistances:
       if col == 1:
-        distance2D = self.logic.get2DDistance(targetPosition, self.cursorPosition)
-        return 'x = ' + str(round(distance2D[0], 2)) + ' y = ' + str(round(distance2D[1], 2))
-      distance3D = self.logic.get3DDistance(targetPosition, self.cursorPosition)
+        distance2D = self.logic.get3DDistance(targetPosition, self.cursorPosition)
+        distance2D = [str(round(distance2D[0], 2)), str(round(distance2D[1], 2)), str(round(distance2D[2], 2))]
+        return 'x = ' + distance2D[0] + ' y = ' + distance2D[1] + ' z = ' + distance2D[2]
+      distance3D = self.logic.get3DEuclideanDistance(targetPosition, self.cursorPosition)
       return str(round(distance3D, 2))
 
     elif (col == 3 or col == 4) and self.logic.zFrameRegistrationSuccessful:
