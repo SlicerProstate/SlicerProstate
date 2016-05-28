@@ -1,21 +1,20 @@
 import DICOMLib
 import os, sys
-import slicer, vtk, ctk, qt
+import slicer, vtk, qt
 import xml.dom.minidom, datetime
 from constants import DICOMTAGS
-from mixins import ModuleLogicMixin, ModuleWidgetMixin
+from mixins import ModuleLogicMixin, ModuleWidgetMixin, ParameterNodeObservationMixin
+from events import SlicerProstateEvents
 
 
-class SmartDICOMReceiver(ModuleLogicMixin):
+class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
 
   STATUS_RECEIVING = "Receiving DICOM data"
   STATUS_WAITING = "Waiting for incoming DICOM data"
   STATUS_COMPLETED = "DICOM data receive completed."
 
-  def __init__(self, incomingDataDirectory, receiveFinishedCallback, statusCallback=None):
+  def __init__(self, incomingDataDirectory):
     self.incomingDataDirectory = incomingDataDirectory
-    self.receiveFinishedCallback = receiveFinishedCallback
-    self.statusCallback = slicer.util.showStatusMessage if not statusCallback else statusCallback
     self.storeSCPProcess = None
     self.setupTimers()
     self.reset()
@@ -49,19 +48,23 @@ class SmartDICOMReceiver(ModuleLogicMixin):
 
   def startWatching(self):
     self.currentFileList = self.getFileList(self.incomingDataDirectory)
+    status = self.STATUS_WAITING
     if self.lastFileCount != len(self.currentFileList):
       status = self.getReceivingStatusMessage(self.STATUS_RECEIVING) if self.showDots else self.STATUS_RECEIVING
-      self.statusCallback(status)
       self.dataHasBeenReceived = True
       self.lastFileCount = len(self.currentFileList)
       self.watchTimer.start()
     elif self.dataHasBeenReceived:
       self.lastFileCount = len(self.currentFileList)
-      self.statusCallback(self.STATUS_COMPLETED)
+      status = self.STATUS_COMPLETED
       self.dataReceivedTimer.start()
     else:
-      self.statusCallback(self.STATUS_WAITING)
       self.watchTimer.start()
+    self.updateStatus(status)
+
+  def updateStatus(self, text):
+    slicer.util.showStatusMessage(text)
+    self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, text)
 
   def getReceivingStatusMessage(self, message):
     if self.timerIterations == 4:
@@ -82,7 +85,7 @@ class SmartDICOMReceiver(ModuleLogicMixin):
       newFileList = list(set(self.currentFileList) - set(self.startingFileList))
       self.startingFileList = self.currentFileList
       self.lastFileCount = len(self.startingFileList)
-      self.receiveFinishedCallback(newFileList=newFileList)
+      self.invokeEvent(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, newFileList.__str__())
     self.watchTimer.start()
 
 
@@ -224,6 +227,7 @@ class SliceAnnotation(object):
   def _removeActor(self):
     try:
       self.renderer.RemoveActor(self.textActor)
+      self.update()
     except:
       pass
 
@@ -330,32 +334,42 @@ class IncomingDataMessageBox(ExtendedQMessageBox):
     self.setDefaultButton(trackButton)
 
 
-class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin):
+class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin):
 
-  def __init__(self, callback=None, title="Receiving image data", skipText="Skip", cancelText="Cancel", *args):
+  def __init__(self, incomingDataDirectory, title="Receiving image data",
+               skipText="Skip", cancelText="Cancel", *args):
     super(IncomingDataWindow, self).__init__(*args)
     self.setWindowTitle(title)
-    self.callback = callback if callback else None
     self.setWindowFlags(qt.Qt.CustomizeWindowHint | qt.Qt.WindowTitleHint | qt.Qt.WindowStaysOnTopHint)
     self.skipButtonText = skipText
     self.cancelButtonText = cancelText
     self.setup()
+    self.dicomReceiver = SmartDICOMReceiver(incomingDataDirectory=incomingDataDirectory)
+    self.dicomReceiver.addObserver(SlicerProstateEvents.StatusChangedEvent, self.onStatusChanged)
+    self.dicomReceiver.addObserver(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, self.onReceiveFinished)
 
-  def setText(self, text):
-    self.skipButton.enabled = text in SmartDICOMReceiver.STATUS_WAITING
-    self.textLabel.text = text
+  def __del__(self):
+    if self.dicomReceiver:
+      self.dicomReceiver.removeObservers()
+
+  @vtk.calldata_type(vtk.VTK_STRING)
+  def onStatusChanged(self, caller, event, callData):
+    self.skipButton.enabled = callData in self.dicomReceiver.STATUS_WAITING
+    self.textLabel.text = callData
 
   def show(self, disableWidget=None):
     self.disabledWidget = disableWidget
     if disableWidget:
       disableWidget.enabled = False
     qt.QWidget.show(self)
+    self.dicomReceiver.start(showDots=False)
 
   def hide(self):
     if self.disabledWidget:
       self.disabledWidget.enabled = True
       self.disabledWidget = None
     qt.QWidget.hide(self)
+    self.dicomReceiver.stop()
 
   def setup(self):
     self.setLayout(qt.QGridLayout())
@@ -383,12 +397,18 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin):
     self.buttonGroup.connect('buttonClicked(QAbstractButton*)', self.onButtonClicked)
 
   def onButtonClicked(self, button):
-    if self.callback:
-      self.callback(button)
     self.hide()
+    if button is self.skipButton:
+      self.invokeEvent(SlicerProstateEvents.IncomingDataSkippedEvent)
+    else:
+      self.invokeEvent(SlicerProstateEvents.IncomingDataCanceledEvent)
+
+  def onReceiveFinished(self, caller, event):
+    self.hide()
+    self.invokeEvent(SlicerProstateEvents.IncomingDataReceiveFinishedEvent)
 
 
-class RatingWindow(qt.QWidget, ModuleWidgetMixin):
+class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin):
 
   @property
   def maximumValue(self):
@@ -423,13 +443,12 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin):
     self.filledStarIcon = self.createIcon("icon-star-filled.png", self.iconPath)
     self.unfilledStarIcon = self.createIcon("icon-star-unfilled.png", self.iconPath)
 
-  def show(self, disableWidget=None, callback=None):
+  def show(self, disableWidget=None):
     self.disabledWidget = disableWidget
     if disableWidget:
       disableWidget.enabled = False
     qt.QWidget.show(self)
     self.ratingScore = None
-    self.callback = callback
 
   def setupElements(self):
     self.layout().addWidget(qt.QLabel(self.text), 0, 0)
@@ -486,8 +505,7 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin):
     if self.disabledWidget:
       self.disabledWidget.enabled = True
       self.disabledWidget = None
-    if self.callback:
-      self.callback(self.ratingScore)
+    self.invokeEvent(SlicerProstateEvents.RatingWindowClosedEvent, str(self.ratingScore))
     self.hide()
 
 
@@ -655,7 +673,7 @@ class DICOMBasedInformationWatchBox(FileBasedInformationWatchBox):
       self.setInformation(attribute.name, value, toolTip=value)
 
 
-class CustomTargetTableModel(qt.QAbstractTableModel):
+class CustomTargetTableModel(qt.QAbstractTableModel, ParameterNodeObservationMixin):
 
   COLUMN_NAME = 'Name'
   COLUMN_2D_DISTANCE = 'Distance 2D[mm]'
@@ -700,11 +718,6 @@ class CustomTargetTableModel(qt.QAbstractTableModel):
     self.zFrameDepths = {}
     self.zFrameHole = {}
     self.observer = None
-    self._targetModifiedCallback = None
-
-  def setTargetModifiedCallback(self, func):
-    assert hasattr(func, '__call__')
-    self._targetModifiedCallback = func
 
   def headerData(self, col, orientation, role):
     if orientation == qt.Qt.Horizontal and role in [qt.Qt.DisplayRole, qt.Qt.ToolTipRole]:
@@ -736,9 +749,10 @@ class CustomTargetTableModel(qt.QAbstractTableModel):
       return self.targetList.GetNthFiducialLabel(row)
     elif (col == 1 or col == 2) and self.cursorPosition and self.computeCursorDistances:
       if col == 1:
-        distance2D = self.logic.get2DDistance(targetPosition, self.cursorPosition)
-        return 'x = ' + str(round(distance2D[0], 2)) + ' y = ' + str(round(distance2D[1], 2))
-      distance3D = self.logic.get3DDistance(targetPosition, self.cursorPosition)
+        distance2D = self.logic.get3DDistance(targetPosition, self.cursorPosition)
+        distance2D = [str(round(distance2D[0], 2)), str(round(distance2D[1], 2)), str(round(distance2D[2], 2))]
+        return 'x = ' + distance2D[0] + ' y = ' + distance2D[1] + ' z = ' + distance2D[2]
+      distance3D = self.logic.get3DEuclideanDistance(targetPosition, self.cursorPosition)
       return str(round(distance3D, 2))
 
     elif (col == 3 or col == 4) and self.logic.zFrameRegistrationSuccessful:
@@ -773,11 +787,10 @@ class CustomTargetTableModel(qt.QAbstractTableModel):
       self.computeZFrameHole(index, pos)
 
     self.dataChanged(self.index(0, 3), self.index(self.rowCount()-1, 4))
-    if self._targetModifiedCallback:
-      self._targetModifiedCallback()
+    self.invokeEvent(vtk.vtkCommand.ModifiedEvent)
 
 
-class TargetCreationWidget(ModuleWidgetMixin):
+class TargetCreationWidget(ModuleWidgetMixin, ParameterNodeObservationMixin):
 
   HEADERS = ["Name","Delete"]
   MODIFIED_EVENT = "ModifiedEvent"
@@ -790,24 +803,23 @@ class TargetCreationWidget(ModuleWidgetMixin):
   @currentNode.setter
   def currentNode(self, node):
     if self._currentNode:
-      self.removeObservers()
+      self.removeTargetListObservers()
     self._currentNode = node
     if node:
       self.placeWidget.setCurrentNode(node)
-      self.addObservers()
+      self.addTargetListObservers()
     else:
       selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
       selectionNode.SetReferenceActivePlaceNodeID(None)
     self.updateTable()
 
-  def __init__(self, parent, listModifiedCallback=None):
+  def __init__(self, parent):
     self.parent = parent
     self.connectedButtons = []
     self.fiducialsNodeObservers = []
     self.setup()
     self._currentNode = None
     self.markupsLogic = slicer.modules.markups.logic()
-    self.listModifiedCallback = listModifiedCallback
 
   def setup(self):
     self.placeWidget = slicer.qSlicerMarkupsPlaceWidget()
@@ -851,13 +863,13 @@ class TargetCreationWidget(ModuleWidgetMixin):
       button.clicked.disconnect(self.handleDeleteButtonClicked)
     self.connectedButtons = []
 
-  def removeObservers(self):
+  def removeTargetListObservers(self):
     if self._currentNode and len(self.fiducialsNodeObservers) > 0:
       for observer in self.fiducialsNodeObservers:
         self._currentNode.RemoveObserver(observer)
     self.fiducialsNodeObservers = []
 
-  def addObservers(self):
+  def addTargetListObservers(self):
     if self.currentNode:
       for event in self.FIDUCIAL_LIST_OBSERVED_EVENTS:
         self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
@@ -890,8 +902,7 @@ class TargetCreationWidget(ModuleWidgetMixin):
   def onFiducialsUpdated(self, caller, event):
     if caller.IsA("vtkMRMLMarkupsFiducialNode") and event == self.MODIFIED_EVENT:
       self.updateTable()
-      if self.listModifiedCallback:
-        self.listModifiedCallback()
+      self.invokeEvent(vtk.vtkCommand.ModifiedEvent)
 
   def onCellChanged(self, row, col):
     if col == 0:

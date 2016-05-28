@@ -43,6 +43,14 @@ class ModuleWidgetMixin(object):
         displayNode.AddViewNodeID(sliceNode.GetID())
 
   @staticmethod
+  def removeViewNodeIDs(node, sliceNodes):
+    displayNode = node.GetDisplayNode()
+    if displayNode:
+      displayNode.RemoveAllViewNodeIDs()
+      for sliceNode in sliceNodes:
+        displayNode.RemoveViewNodeID(sliceNode.GetID())
+
+  @staticmethod
   def jumpSliceNodeToTarget(sliceNode, targetNode, index):
     point = [0,0,0,0]
     targetNode.GetMarkupPointWorld(index, 0, point)
@@ -57,7 +65,7 @@ class ModuleWidgetMixin(object):
   def getSetting(self, setting, moduleName=None):
     moduleName = moduleName if moduleName else self.moduleName
     settings = qt.QSettings()
-    setting = settings.value(self.moduleName + '/' + setting)
+    setting = settings.value(moduleName + '/' + setting)
     return setting
 
   def setSetting(self, setting, value, moduleName=None):
@@ -185,7 +193,6 @@ class ModuleWidgetMixin(object):
           c.hide()
 
 
-
 class ModuleLogicMixin(object):
 
   @staticmethod
@@ -227,18 +234,16 @@ class ModuleLogicMixin(object):
     return timer
 
   @staticmethod
-  def get2DDistance(pos1, pos2):
-    x = abs(pos1[0] - pos2[0])
-    y = abs(pos1[1] - pos2[1])
-    return [x, y]
+  def get3DDistance(p1, p2):
+    return [abs(p1[0]-p2[0]), abs(p1[1]-p2[1]), abs(p1[2]-p2[2])]
 
   @staticmethod
-  def get3DDistance(pos1, pos2):
+  def get3DEuclideanDistance(pos1, pos2):
     rulerNode = slicer.vtkMRMLAnnotationRulerNode()
     rulerNode.SetPosition1(pos1)
     rulerNode.SetPosition2(pos2)
-    distance_3D = rulerNode.GetDistanceMeasurement()
-    return distance_3D
+    distance3D = rulerNode.GetDistanceMeasurement()
+    return distance3D
 
   @staticmethod
   def dilateMask(label):
@@ -392,7 +397,7 @@ class ParameterNodeObservationMixin(object):
     try:
       return self._parameterNode
     except AttributeError:
-      self._parameterNode = self.getParameterNode()
+      self._parameterNode = self.getParameterNode() if hasattr(self, "getParameterNode") else self._getParameterNode()
     return self._parameterNode
 
   @property
@@ -403,12 +408,10 @@ class ParameterNodeObservationMixin(object):
       self._parameterNodeObservations = []
     return self._parameterNodeObservations
 
-  def getParameterNode(self):
-    """If this mixin is used in a ScriptedLoadableModuleLogic
-    inherited class, it should be overwritten with:
-    return ScriptedLoadableModuleLogic.getParameterNode(self)
-    """
-    return NotImplementedError
+  def _getParameterNode(self):
+    parameterNode = slicer.vtkMRMLScriptedModuleNode()
+    slicer.mrmlScene.AddNode(parameterNode)
+    return parameterNode
 
   def removeObservers(self, method=None):
     for e, m, g, t in list(self.parameterNodeObservations):
