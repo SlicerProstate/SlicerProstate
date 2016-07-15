@@ -246,7 +246,7 @@ class ModuleLogicMixin(object):
     return distance3D
 
   @staticmethod
-  def dilateMask(label, dilateValue, erodeValue=0):
+  def dilateMask(label, dilateValue=1.0, erodeValue=0.0):
     imagedata = label.GetImageData()
     dilateErode = vtk.vtkImageDilateErode3D()
     dilateErode.SetInputData(imagedata)
