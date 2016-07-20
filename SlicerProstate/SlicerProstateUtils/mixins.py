@@ -246,13 +246,15 @@ class ModuleLogicMixin(object):
     return distance3D
 
   @staticmethod
-  def dilateMask(label):
+  def dilateMask(label, dilateValue=1.0, erodeValue=0.0, marginSize=5.0):
     imagedata = label.GetImageData()
     dilateErode = vtk.vtkImageDilateErode3D()
     dilateErode.SetInputData(imagedata)
-    dilateErode.SetDilateValue(1.0)
-    dilateErode.SetErodeValue(0.0)
-    dilateErode.SetKernelSize(12, 12, 1)
+    dilateErode.SetDilateValue(dilateValue)
+    dilateErode.SetErodeValue(erodeValue)
+    spacing = label.GetSpacing()
+    kernelSizePixel = [int(round((abs(marginSize) / spacing[componentIndex]+1)/2)*2-1) for componentIndex in range(3)]
+    dilateErode.SetKernelSize(kernelSizePixel[0], kernelSizePixel[1], kernelSizePixel[2])
     dilateErode.Update()
     label.SetAndObserveImageData(dilateErode.GetOutput())
 

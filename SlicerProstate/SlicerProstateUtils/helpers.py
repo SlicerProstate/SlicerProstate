@@ -1,17 +1,17 @@
 import DICOMLib
-import os, sys
+import os, sys, ast
 import slicer, vtk, qt
 import xml.dom.minidom, datetime
 from constants import DICOMTAGS
 from mixins import ModuleLogicMixin, ModuleWidgetMixin, ParameterNodeObservationMixin
 from events import SlicerProstateEvents
 
-
 class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
 
-  STATUS_RECEIVING = "Receiving DICOM data"
   STATUS_WAITING = "Waiting for incoming DICOM data"
+  STATUS_RECEIVING = "Receiving DICOM data"
   STATUS_COMPLETED = "DICOM data receive completed."
+  AVAILABLE_STATES = [STATUS_WAITING,STATUS_RECEIVING,STATUS_COMPLETED]
 
   def __init__(self, incomingDataDirectory):
     self.incomingDataDirectory = incomingDataDirectory
@@ -20,17 +20,16 @@ class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
     self.reset()
 
   def reset(self):
-    self.timerIterations = 0
     self.startingFileList = []
     self.currentFileList = []
     self.dataHasBeenReceived = False
+    self.currentStatus = ""
 
   def setupTimers(self):
     self.dataReceivedTimer = self.createTimer(interval=5000, slot=self.checkIfStillSameFileCount, singleShot=True)
     self.watchTimer = self.createTimer(interval=1000, slot=self.startWatching, singleShot=True)
 
-  def start(self, showDots=True):
-    self.showDots = showDots
+  def start(self):
     self.stop()
 
     self.startingFileList = self.getFileList(self.incomingDataDirectory)
@@ -48,32 +47,25 @@ class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
 
   def startWatching(self):
     self.currentFileList = self.getFileList(self.incomingDataDirectory)
-    status = self.STATUS_WAITING
+    status = self.STATUS_RECEIVING
     if self.lastFileCount != len(self.currentFileList):
-      status = self.getReceivingStatusMessage(self.STATUS_RECEIVING) if self.showDots else self.STATUS_RECEIVING
       self.dataHasBeenReceived = True
       self.lastFileCount = len(self.currentFileList)
       self.watchTimer.start()
     elif self.dataHasBeenReceived:
       self.lastFileCount = len(self.currentFileList)
-      status = self.STATUS_COMPLETED
+      self.dataHasBeenReceived = False
       self.dataReceivedTimer.start()
     else:
+      status = self.STATUS_WAITING
       self.watchTimer.start()
     self.updateStatus(status)
 
   def updateStatus(self, text):
-    slicer.util.showStatusMessage(text)
-    self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, text)
-
-  def getReceivingStatusMessage(self, message):
-    if self.timerIterations == 4:
-      self.timerIterations = 0
-    dots = ""
-    for iteration in range(self.timerIterations):
-      dots += "."
-    self.timerIterations += 1
-    return message + dots
+    if text != self.currentStatus:
+      self.currentStatus = text
+      self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, [text, len(self.AVAILABLE_STATES)-1,
+                                                                 self.AVAILABLE_STATES.index(text)].__str__())
 
   def stopWatching(self):
     self.dataReceivedTimer.stop()
@@ -85,8 +77,70 @@ class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
       newFileList = list(set(self.currentFileList) - set(self.startingFileList))
       self.startingFileList = self.currentFileList
       self.lastFileCount = len(self.startingFileList)
-      self.invokeEvent(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, newFileList.__str__())
+      if len(newFileList):
+        self.updateStatus(self.STATUS_COMPLETED)
+        self.invokeEvent(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, newFileList.__str__())
     self.watchTimer.start()
+
+
+class CustomStatusProgressbar(qt.QWidget, ModuleWidgetMixin):
+
+  STYLE = "QWidget{background-color:#FFFFFF;}"
+
+  @property
+  def text(self):
+    return self.textLabel.text
+
+  @text.setter
+  def text(self, value):
+    self.textLabel.text = value
+
+  @property
+  def value(self):
+    return self.progress.value
+
+  @value.setter
+  def value(self, value):
+    self.progress.value = value
+
+  @property
+  def maximum(self):
+    return self.progress.maximum
+
+  @maximum.setter
+  def maximum(self, value):
+    self.progress.maximum = value
+
+  def __init__(self, parent=None):
+    qt.QWidget.__init__(self, parent)
+    self.setup()
+
+  def setup(self):
+    self.textLabel = qt.QLabel()
+    self.progress = qt.QProgressBar()
+    self.maximumHeight = slicer.util.mainWindow().statusBar().height
+    rowLayout = qt.QHBoxLayout()
+    self.setLayout(rowLayout)
+    rowLayout.addWidget(self.textLabel, 1)
+    rowLayout.addWidget(self.progress, 1)
+    self.setStyleSheet(self.STYLE)
+
+  def updateStatus(self, text, value=None):
+    self.text = text
+    if value is not None:
+      self.value = value
+
+  def reset(self):
+    self.text = ""
+    self.progress.reset()
+
+  def show(self):
+    slicer.util.mainWindow().statusBar().addWidget(self, 1)
+    qt.QWidget.show(self)
+
+  def hide(self):
+    slicer.util.mainWindow().statusBar().removeWidget(self)
+    qt.QWidget.hide(self)
 
 
 class SliceAnnotation(object):
@@ -316,7 +370,7 @@ class ExtendedQMessageBox(qt.QMessageBox):
 
   def setupUI(self):
     self.checkbox = qt.QCheckBox("Remember the selection and do not notify again")
-    self.layout().addWidget(self.checkbox, 1,2)
+    self.layout().addWidget(self.checkbox, 1, 1)
 
   def exec_(self, *args, **kwargs):
     return qt.QMessageBox.exec_(self, *args, **kwargs), self.checkbox.isChecked()
@@ -327,7 +381,8 @@ class IncomingDataMessageBox(ExtendedQMessageBox):
   def __init__(self, parent=None):
     super(IncomingDataMessageBox, self).__init__(parent)
     self.setWindowTitle("Incoming image data")
-    self.setText("New data has been received. What would you do?")
+    self.textLabel = qt.QLabel("New data has been received. What do you want do?")
+    self.layout().addWidget(self.textLabel, 0, 1)
     self.setIcon(qt.QMessageBox.Question)
     trackButton =  self.addButton(qt.QPushButton('Track targets'), qt.QMessageBox.AcceptRole)
     self.addButton(qt.QPushButton('Postpone'), qt.QMessageBox.NoRole)
@@ -354,15 +409,19 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservation
 
   @vtk.calldata_type(vtk.VTK_STRING)
   def onStatusChanged(self, caller, event, callData):
-    self.skipButton.enabled = callData in self.dicomReceiver.STATUS_WAITING
-    self.textLabel.text = callData
+    text, steps, currentStep = ast.literal_eval(callData)
+    self.textLabel.text = text
+    self.progress.maximum = 0 if currentStep == 0 and self.progress.maximum == 0 else steps
+    self.skipButton.enabled = self.progress.maximum == 0
+    if currentStep:
+      self.progress.value = currentStep
 
   def show(self, disableWidget=None):
     self.disabledWidget = disableWidget
     if disableWidget:
       disableWidget.enabled = False
     qt.QWidget.show(self)
-    self.dicomReceiver.start(showDots=False)
+    self.dicomReceiver.start()
 
   def hide(self):
     if self.disabledWidget:
@@ -671,123 +730,6 @@ class DICOMBasedInformationWatchBox(FileBasedInformationWatchBox):
         values.append(currentValue)
       value = self._getTagValueFromTagValues(values)
       self.setInformation(attribute.name, value, toolTip=value)
-
-
-class CustomTargetTableModel(qt.QAbstractTableModel, ParameterNodeObservationMixin):
-
-  COLUMN_NAME = 'Name'
-  COLUMN_2D_DISTANCE = 'Distance 2D[mm]'
-  COLUMN_3D_DISTANCE = 'Distance 3D[mm]'
-  COLUMN_HOLE = 'Hole'
-  COLUMN_DEPTH = 'Depth [mm]'
-
-  headers = [COLUMN_NAME, COLUMN_2D_DISTANCE, COLUMN_3D_DISTANCE, COLUMN_HOLE, COLUMN_DEPTH]
-
-  @property
-  def targetList(self):
-    return self._targetList
-
-  @targetList.setter
-  def targetList(self, targetList):
-    self.needleStartEndPositions = {}
-    if self._targetList and self.observer:
-      self._targetList.RemoveObserver(self.observer)
-    self._targetList = targetList
-    if self._targetList:
-      self.observer = self._targetList.AddObserver(self._targetList.PointModifiedEvent, self.computeNewDepthAndHole)
-    self.computeNewDepthAndHole()
-    self.reset()
-
-  @property
-  def cursorPosition(self):
-    return self._cursorPosition
-
-  @cursorPosition.setter
-  def cursorPosition(self, cursorPosition):
-    self._cursorPosition = cursorPosition
-    self.dataChanged(self.index(0, 1), self.index(self.rowCount()-1, 2))
-
-  def __init__(self, logic, targets=None, parent=None, *args):
-    qt.QAbstractTableModel.__init__(self, parent, *args)
-    self.logic = logic
-    self._cursorPosition = None
-    self._targetList = None
-    self.needleStartEndPositions = {}
-    self.targetList = targets
-    self.computeCursorDistances = False
-    self.zFrameDepths = {}
-    self.zFrameHole = {}
-    self.observer = None
-
-  def headerData(self, col, orientation, role):
-    if orientation == qt.Qt.Horizontal and role in [qt.Qt.DisplayRole, qt.Qt.ToolTipRole]:
-        return self.headers[col]
-    return None
-
-  def rowCount(self):
-    try:
-      number_of_targets = self.targetList.GetNumberOfFiducials()
-      return number_of_targets
-    except AttributeError:
-      return 0
-
-  def columnCount(self):
-    return len(self.headers)
-
-  def data(self, index, role):
-    if not index.isValid() or role not in [qt.Qt.DisplayRole, qt.Qt.ToolTipRole]:
-      return None
-
-    row = index.row()
-    col = index.column()
-
-    targetPosition = [0.0, 0.0, 0.0]
-    if col in [1,2,3,4]:
-      self.targetList.GetNthFiducialPosition(row, targetPosition)
-
-    if col == 0:
-      return self.targetList.GetNthFiducialLabel(row)
-    elif (col == 1 or col == 2) and self.cursorPosition and self.computeCursorDistances:
-      if col == 1:
-        distance2D = self.logic.get3DDistance(targetPosition, self.cursorPosition)
-        distance2D = [str(round(distance2D[0], 2)), str(round(distance2D[1], 2)), str(round(distance2D[2], 2))]
-        return 'x = ' + distance2D[0] + ' y = ' + distance2D[1] + ' z = ' + distance2D[2]
-      distance3D = self.logic.get3DEuclideanDistance(targetPosition, self.cursorPosition)
-      return str(round(distance3D, 2))
-
-    elif (col == 3 or col == 4) and self.logic.zFrameRegistrationSuccessful:
-      if col == 3:
-        return self.computeZFrameHole(row, targetPosition)
-      else:
-        return self.computeZFrameDepth(row, targetPosition)
-    return ""
-
-  def computeZFrameHole(self, index, targetPosition):
-    if index not in self.zFrameHole.keys():
-      (start, end, indexX, indexY, depth, inRange) = self.logic.computeNearestPath(targetPosition)
-      self.needleStartEndPositions[index] = (start, end)
-      self.zFrameHole[index] = '(%s, %s)' % (indexX, indexY)
-    return self.zFrameHole[index]
-
-  def computeZFrameDepth(self, index, targetPosition):
-    if index not in self.zFrameDepths.keys():
-      (start, end, indexX, indexY, depth, inRange) = self.logic.computeNearestPath(targetPosition)
-      self.zFrameDepths[index] = '%.3f' % depth if inRange else '(%.3f)' % depth
-    return self.zFrameDepths[index]
-
-  def computeNewDepthAndHole(self, observer=None, caller=None):
-    self.zFrameDepths = {}
-    self.zFrameHole = {}
-    if not self.targetList or not self.logic.zFrameRegistrationSuccessful:
-      return
-
-    for index in range(self.targetList.GetNumberOfFiducials()):
-      pos = [0.0, 0.0, 0.0]
-      self.targetList.GetNthFiducialPosition(index, pos)
-      self.computeZFrameHole(index, pos)
-
-    self.dataChanged(self.index(0, 3), self.index(self.rowCount()-1, 4))
-    self.invokeEvent(vtk.vtkCommand.ModifiedEvent)
 
 
 class TargetCreationWidget(ModuleWidgetMixin, ParameterNodeObservationMixin):
