@@ -1,6 +1,7 @@
 import qt, vtk, ctk
 import os, logging
 import slicer
+from SlicerProstateUtils.widgets import CustomStatusProgressbar
 
 
 class ModuleWidgetMixin(object):
@@ -21,6 +22,14 @@ class ModuleWidgetMixin(object):
     except (IndexError, AttributeError):
       pass
     return path
+
+  def getOrCreateCustomProgressBar(self):
+    for child in slicer.util.mainWindow().statusBar().children():
+      if isinstance(child, CustomStatusProgressbar):
+        return child
+    customStatusProgressBar = CustomStatusProgressbar()
+    slicer.util.mainWindow().statusBar().addWidget(customStatusProgressBar, 1)
+    return customStatusProgressBar
 
   @staticmethod
   def setFOV(sliceLogic, FOV):
