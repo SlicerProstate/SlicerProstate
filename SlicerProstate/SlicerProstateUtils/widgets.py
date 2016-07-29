@@ -19,6 +19,7 @@ class CustomStatusProgressbar(qt.QWidget):
   @value.setter
   def value(self, value):
     self.progress.value = value
+    self.refreshProgressVisibility()
 
   @property
   def maximum(self):
@@ -27,6 +28,7 @@ class CustomStatusProgressbar(qt.QWidget):
   @maximum.setter
   def maximum(self, value):
     self.progress.maximum = value
+    self.refreshProgressVisibility()
 
   def __init__(self, parent=None):
     qt.QWidget.__init__(self, parent)
@@ -41,6 +43,7 @@ class CustomStatusProgressbar(qt.QWidget):
     rowLayout.addWidget(self.textLabel, 1)
     rowLayout.addWidget(self.progress, 1)
     self.setStyleSheet(self.STYLE)
+    self.refreshProgressVisibility()
 
   def updateStatus(self, text, value=None):
     self.text = text
@@ -50,3 +53,7 @@ class CustomStatusProgressbar(qt.QWidget):
   def reset(self):
     self.text = ""
     self.progress.reset()
+    self.refreshProgressVisibility()
+
+  def refreshProgressVisibility(self):
+    self.progress.visible = self.value > 0 and self.progress.maximum > 0 or self.progress.maximum == 0
