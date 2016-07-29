@@ -8,10 +8,13 @@ from events import SlicerProstateEvents
 
 class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
 
-  STATUS_WAITING = "Waiting for incoming DICOM data"
-  STATUS_RECEIVING = "Receiving DICOM data"
-  STATUS_COMPLETED = "DICOM data receive completed."
+  STATUS_PREFIX = "SmartDICOMReceiver: "
+  STATUS_WAITING = STATUS_PREFIX + "Waiting for incoming DICOM data"
+  STATUS_RECEIVING = STATUS_PREFIX + "Receiving DICOM data"
+  STATUS_COMPLETED = STATUS_PREFIX + "DICOM data receive completed."
   AVAILABLE_STATES = [STATUS_WAITING,STATUS_RECEIVING,STATUS_COMPLETED]
+
+  SUPPORTED_EVENTS = [SlicerProstateEvents.StatusChangedEvent, SlicerProstateEvents.IncomingDataReceiveFinishedEvent]
 
   def __init__(self, incomingDataDirectory):
     self.incomingDataDirectory = incomingDataDirectory
@@ -47,25 +50,29 @@ class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
 
   def startWatching(self):
     self.currentFileList = self.getFileList(self.incomingDataDirectory)
-    status = self.STATUS_RECEIVING
-    if self.lastFileCount != len(self.currentFileList):
+    status = None
+    currentFileListCount = len(self.currentFileList)
+    if self.lastFileCount != currentFileListCount:
       self.dataHasBeenReceived = True
-      self.lastFileCount = len(self.currentFileList)
+      self.lastFileCount = currentFileListCount
+      receivedFileCount = abs(len(self.startingFileList)-currentFileListCount)
+      self.invokeEvent(SlicerProstateEvents.IncomingFileCountChangedEvent, receivedFileCount)
+      status = self.STATUS_PREFIX + "Received %d files" % receivedFileCount
       self.watchTimer.start()
     elif self.dataHasBeenReceived:
-      self.lastFileCount = len(self.currentFileList)
+      self.lastFileCount = currentFileListCount
       self.dataHasBeenReceived = False
       self.dataReceivedTimer.start()
     else:
       status = self.STATUS_WAITING
       self.watchTimer.start()
-    self.updateStatus(status)
+    if status:
+      self.updateStatus(status)
 
   def updateStatus(self, text):
     if text != self.currentStatus:
       self.currentStatus = text
-      self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, [text, len(self.AVAILABLE_STATES)-1,
-                                                                 self.AVAILABLE_STATES.index(text)].__str__())
+      self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, text)
 
   def stopWatching(self):
     self.dataReceivedTimer.stop()
@@ -349,12 +356,9 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservation
 
   @vtk.calldata_type(vtk.VTK_STRING)
   def onStatusChanged(self, caller, event, callData):
-    text, steps, currentStep = ast.literal_eval(callData)
-    self.textLabel.text = text
-    self.progress.maximum = 0 if currentStep == 0 and self.progress.maximum == 0 else steps
+    self.textLabel.text = callData
+    self.progress.maximum = 0
     self.skipButton.enabled = self.progress.maximum == 0
-    if currentStep:
-      self.progress.value = currentStep
 
   def show(self, disableWidget=None):
     self.disabledWidget = disableWidget
