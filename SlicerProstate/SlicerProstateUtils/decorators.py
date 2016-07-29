@@ -1,6 +1,7 @@
 from functools import wraps
 import logging
 import inspect
+import slicer
 
 
 def logmethod(level=logging.DEBUG):
@@ -53,4 +54,13 @@ def onExceptionReturnNone(func):
       return func(*args, **kwargs)
     except (IndexError, AttributeError, KeyError):
       return None
+  return wrapper
+
+
+def onReturnProcessEvents(func):
+
+  @wraps(func)
+  def wrapper(*args, **kwargs):
+    func(*args, **kwargs)
+    slicer.app.processEvents()
   return wrapper
