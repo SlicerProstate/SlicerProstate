@@ -64,3 +64,12 @@ def onReturnProcessEvents(func):
     func(*args, **kwargs)
     slicer.app.processEvents()
   return wrapper
+
+
+def beforeRunProcessEvents(func):
+
+  @wraps(func)
+  def wrapper(*args, **kwargs):
+    slicer.app.processEvents()
+    func(*args, **kwargs)
+  return wrapper
