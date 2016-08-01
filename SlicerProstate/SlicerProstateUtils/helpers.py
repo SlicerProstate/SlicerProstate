@@ -12,6 +12,7 @@ class SmartDICOMReceiver(ModuleLogicMixin):
 
   STATUS_PREFIX = "SmartDICOMReceiver: "
   STATUS_WAITING = STATUS_PREFIX + "Waiting for incoming DICOM data"
+  STATUS_WATCHING_ONLY = STATUS_PREFIX + "Watching incoming data directory only (no storescp running)"
   STATUS_RECEIVING = STATUS_PREFIX + "Receiving DICOM data"
   STATUS_COMPLETED = STATUS_PREFIX + "DICOM data receive completed."
   AVAILABLE_STATES = [STATUS_WAITING,STATUS_RECEIVING,STATUS_COMPLETED]
@@ -35,7 +36,10 @@ class SmartDICOMReceiver(ModuleLogicMixin):
     self.currentFileList = []
     self.dataHasBeenReceived = False
     self.currentStatus = ""
-    self.running = False
+    self._running = False
+
+  def isRunning(self):
+    return self._running
 
   def setupTimers(self):
     self.dataReceivedTimer = self.createTimer(interval=5000, slot=self.checkIfStillSameFileCount, singleShot=True)
@@ -44,19 +48,19 @@ class SmartDICOMReceiver(ModuleLogicMixin):
   def forceStatusChangeEvent(self):
     self.currentStatus = "Force update"
 
-  def start(self):
+  def start(self, runStoreSCP=True):
     self.stop()
 
     self.startingFileList = self.getFileList(self.incomingDataDirectory)
     self.lastFileCount = len(self.startingFileList)
-    self.startStoreSCP()
-    self.startWatching()
-    self.storeSCPProcess.start()
+    if runStoreSCP:
+      self.startStoreSCP()
     self.invokeEvent(SlicerProstateEvents.DICOMReceiverStartedEvent)
-    self.running = True
+    self._running = True
+    self.startWatching()
 
   def stop(self):
-    if self.running:
+    if self._running:
       self.stopWatching()
       self.stopStoreSCP()
       self.reset()
@@ -65,6 +69,7 @@ class SmartDICOMReceiver(ModuleLogicMixin):
   def startStoreSCP(self):
     self.stopStoreSCP()
     self.storeSCPProcess = DICOMLib.DICOMStoreSCPProcess(incomingDataDir=self.incomingDataDirectory)
+    self.storeSCPProcess.start()
 
   def stopStoreSCP(self):
     if self.storeSCPProcess:
@@ -72,6 +77,8 @@ class SmartDICOMReceiver(ModuleLogicMixin):
       self.storeSCPProcess = None
 
   def startWatching(self):
+    if not self._running:
+      return
     self.currentFileList = self.getFileList(self.incomingDataDirectory)
     status = None
     currentFileListCount = len(self.currentFileList)
@@ -87,7 +94,7 @@ class SmartDICOMReceiver(ModuleLogicMixin):
       self.dataHasBeenReceived = False
       self.dataReceivedTimer.start()
     else:
-      status = self.STATUS_WAITING
+      status = self.STATUS_WAITING if self.storeSCPProcess else self.STATUS_WATCHING_ONLY
       self.watchTimer.start()
     if status:
       self.updateStatus(status)

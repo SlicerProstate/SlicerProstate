@@ -68,6 +68,12 @@ class ParameterNodeObservationMixin(object):
     else:
       self.parameterNode.InvokeEvent(event)
 
+  def getObservers(self):
+    observerMethodDict = {}
+    for e, m, g, t in self.parameterNodeObservations:
+      observerMethodDict[e] = m
+    return observerMethodDict
+
 
 class GeneralModuleMixin(ParameterNodeObservationMixin):
 
