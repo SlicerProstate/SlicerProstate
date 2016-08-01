@@ -1,18 +1,93 @@
 import qt, vtk, ctk
 import os, logging
 import slicer
+from SlicerProstateUtils.decorators import logmethod
 from SlicerProstateUtils.widgets import CustomStatusProgressbar
 
 
-class ModuleWidgetMixin(object):
+class ParameterNodeObservationMixin(object):
+  """
+  This class can be used as a mixin for all classes that provide a method getParameterNode like
+  ScriptedLoadableModuleLogic. ParameterNodeObservationMixin provides the possibility to simply
+  observe the parameter node. Custom events can be observed and from your ScriptedLoadableModuleLogic
+  invoked. Originated was this class from slicer.util.VTKObservationMixin
+  """
+
+  @logmethod(logging.DEBUG)
+  def __del__(self):
+    self.removeObservers()
+
+  @property
+  def parameterNode(self):
+    try:
+      return self._parameterNode
+    except AttributeError:
+      self._parameterNode = self.getParameterNode() if hasattr(self, "getParameterNode") else self._getParameterNode()
+    return self._parameterNode
+
+  @property
+  def parameterNodeObservations(self):
+    try:
+      return self._parameterNodeObservations
+    except AttributeError:
+      self._parameterNodeObservations = []
+    return self._parameterNodeObservations
+
+  def _getParameterNode(self):
+    parameterNode = slicer.vtkMRMLScriptedModuleNode()
+    slicer.mrmlScene.AddNode(parameterNode)
+    return parameterNode
+
+  def removeObservers(self, method=None):
+    for e, m, g, t in list(self.parameterNodeObservations):
+      if method == m or method is None:
+        self.parameterNode.RemoveObserver(t)
+        self.parameterNodeObservations.remove([e, m, g, t])
+
+  def addObserver(self, event, method, group='none'):
+    if self.hasObserver(event, method):
+      self.removeObserver(event, method)
+    tag = self.parameterNode.AddObserver(event, method)
+    self.parameterNodeObservations.append([event, method, group, tag])
+
+  def removeObserver(self, event, method):
+    for e, m, g, t in self.parameterNodeObservations:
+      if e == event and m == method:
+        self.parameterNode.RemoveObserver(t)
+        self.parameterNodeObservations.remove([e, m, g, t])
+
+  def hasObserver(self, event, method):
+    for e, m, g, t in self.parameterNodeObservations:
+      if e == event and m == method:
+        return True
+    return False
+
+  def invokeEvent(self, event, callData=None):
+    if callData:
+      self.parameterNode.InvokeEvent(event, callData)
+    else:
+      self.parameterNode.InvokeEvent(event)
+
+
+class GeneralModuleMixin(ParameterNodeObservationMixin):
+
+  def getSetting(self, setting, moduleName=None):
+    moduleName = moduleName if moduleName else self.moduleName
+    settings = qt.QSettings()
+    setting = settings.value(moduleName + '/' + setting)
+    return setting
+
+  def setSetting(self, setting, value, moduleName=None):
+    moduleName = moduleName if moduleName else self.moduleName
+    settings = qt.QSettings()
+    settings.setValue(moduleName + '/' + setting, value)
+
+
+class ModuleWidgetMixin(GeneralModuleMixin):
 
   @property
   def layoutManager(self):
     return slicer.app.layoutManager()
-
-  @property
-  def dicomDatabase(self):
-    return slicer.dicomDatabase
 
   @staticmethod
   def truncatePath(path):
@@ -70,17 +145,6 @@ class ModuleWidgetMixin(object):
     interactionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLInteractionNodeSingleton")
     interactionNode.SwitchToViewTransformMode()
     interactionNode.SetPlaceModePersistence(0)
-
-  def getSetting(self, setting, moduleName=None):
-    moduleName = moduleName if moduleName else self.moduleName
-    settings = qt.QSettings()
-    setting = settings.value(moduleName + '/' + setting)
-    return setting
-
-  def setSetting(self, setting, value, moduleName=None):
-    moduleName = moduleName if moduleName else self.moduleName
-    settings = qt.QSettings()
-    settings.setValue(moduleName + '/' + setting, value)
 
   @staticmethod
   def confirmOrSaveDialog(message, title='mpReview'):
@@ -202,7 +266,7 @@ class ModuleWidgetMixin(object):
           c.hide()
 
 
-class ModuleLogicMixin(object):
+class ModuleLogicMixin(GeneralModuleMixin):
 
   @staticmethod
   def cloneFiducials(original, cloneName, keepDisplayNode=False):
@@ -307,9 +371,8 @@ class ModuleLogicMixin(object):
 
   @staticmethod
   def getDICOMValue(currentFile, tag, fallback=None):
-    db = slicer.dicomDatabase
     try:
-      value = db.fileValue(currentFile, tag)
+      value = slicer.dicomDatabase.fileValue(currentFile, tag)
     except RuntimeError:
       logging.info("There are problems with accessing DICOM value %s from file %s" % (tag, currentFile))
       value = fallback
@@ -393,63 +456,3 @@ class ModuleLogicMixin(object):
       return extent[1] > 0 and extent[3] > 0 and extent[5] > 0
     except AttributeError:
       return False
-
-
-class ParameterNodeObservationMixin(object):
-  """
-  This class can be used as a mixin for all classes that provide a method getParameterNode like
-  ScriptedLoadableModuleLogic. ParameterNodeObservationMixin provides the possibility to simply
-  observe the parameter node. Custom events can be observed and from your ScriptedLoadableModuleLogic
-  invoked. Originated was this class from slicer.util.VTKObservationMixin
-  """
-
-  @property
-  def parameterNode(self):
-    try:
-      return self._parameterNode
-    except AttributeError:
-      self._parameterNode = self.getParameterNode() if hasattr(self, "getParameterNode") else self._getParameterNode()
-    return self._parameterNode
-
-  @property
-  def parameterNodeObservations(self):
-    try:
-      return self._parameterNodeObservations
-    except AttributeError:
-      self._parameterNodeObservations = []
-    return self._parameterNodeObservations
-
-  def _getParameterNode(self):
-    parameterNode = slicer.vtkMRMLScriptedModuleNode()
-    slicer.mrmlScene.AddNode(parameterNode)
-    return parameterNode
-
-  def removeObservers(self, method=None):
-    for e, m, g, t in list(self.parameterNodeObservations):
-      if method == m or method is None:
-        self.parameterNode.RemoveObserver(t)
-        self.parameterNodeObservations.remove([e, m, g, t])
-
-  def addObserver(self, event, method, group='none'):
-    if self.hasObserver(event, method):
-      self.removeObserver(event, method)
-    tag = self.parameterNode.AddObserver(event, method)
-    self.parameterNodeObservations.append([event, method, group, tag])
-
-  def removeObserver(self, event, method):
-    for e, m, g, t in self.parameterNodeObservations:
-      if e == event and m == method:
-        self.parameterNode.RemoveObserver(t)
-        self.parameterNodeObservations.remove([e, m, g, t])
-
-  def hasObserver(self, event, method):
-    for e, m, g, t in self.parameterNodeObservations:
-      if e == event and m == method:
-        return True
-    return False
-
-  def invokeEvent(self, event, callData=None):
-    if callData:
-      self.parameterNode.InvokeEvent(event, callData)
-    else:
-      self.parameterNode.InvokeEvent(event)

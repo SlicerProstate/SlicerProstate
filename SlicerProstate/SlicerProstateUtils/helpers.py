@@ -3,10 +3,12 @@ import os, sys, ast
 import slicer, vtk, qt
 import xml.dom.minidom, datetime
 from constants import DICOMTAGS
+from decorators import logmethod
 from mixins import ModuleLogicMixin, ModuleWidgetMixin, ParameterNodeObservationMixin
 from events import SlicerProstateEvents
 
-class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
+
+class SmartDICOMReceiver(ModuleLogicMixin):
 
   STATUS_PREFIX = "SmartDICOMReceiver: "
   STATUS_WAITING = STATUS_PREFIX + "Waiting for incoming DICOM data"
@@ -14,7 +16,8 @@ class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
   STATUS_COMPLETED = STATUS_PREFIX + "DICOM data receive completed."
   AVAILABLE_STATES = [STATUS_WAITING,STATUS_RECEIVING,STATUS_COMPLETED]
 
-  SUPPORTED_EVENTS = [SlicerProstateEvents.StatusChangedEvent, SlicerProstateEvents.IncomingDataReceiveFinishedEvent]
+  SUPPORTED_EVENTS = [SlicerProstateEvents.DICOMReceiverStartedEvent, SlicerProstateEvents.DICOMReceiverStoppedEvent,
+                      SlicerProstateEvents.StatusChangedEvent, SlicerProstateEvents.IncomingDataReceiveFinishedEvent]
 
   def __init__(self, incomingDataDirectory):
     self.incomingDataDirectory = incomingDataDirectory
@@ -22,31 +25,51 @@ class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
     self.setupTimers()
     self.reset()
 
+  @logmethod
+  def __del__(self):
+    self.stop()
+    super(SmartDICOMReceiver, self).__del__()
+
   def reset(self):
     self.startingFileList = []
     self.currentFileList = []
     self.dataHasBeenReceived = False
     self.currentStatus = ""
+    self.running = False
 
   def setupTimers(self):
     self.dataReceivedTimer = self.createTimer(interval=5000, slot=self.checkIfStillSameFileCount, singleShot=True)
     self.watchTimer = self.createTimer(interval=1000, slot=self.startWatching, singleShot=True)
+
+  def forceStatusChangeEvent(self):
+    self.currentStatus = "Force update"
 
   def start(self):
     self.stop()
 
     self.startingFileList = self.getFileList(self.incomingDataDirectory)
     self.lastFileCount = len(self.startingFileList)
-
-    self.storeSCPProcess = DICOMLib.DICOMStoreSCPProcess(incomingDataDir=self.incomingDataDirectory)
+    self.startStoreSCP()
     self.startWatching()
     self.storeSCPProcess.start()
+    self.invokeEvent(SlicerProstateEvents.DICOMReceiverStartedEvent)
+    self.running = True
 
   def stop(self):
-    self.stopWatching()
+    if self.running:
+      self.stopWatching()
+      self.stopStoreSCP()
+      self.reset()
+      self.invokeEvent(SlicerProstateEvents.DICOMReceiverStoppedEvent)
+
+  def startStoreSCP(self):
+    self.stopStoreSCP()
+    self.storeSCPProcess = DICOMLib.DICOMStoreSCPProcess(incomingDataDir=self.incomingDataDirectory)
+
+  def stopStoreSCP(self):
     if self.storeSCPProcess:
       self.storeSCPProcess.stop()
-    self.reset()
+      self.storeSCPProcess = None
 
   def startWatching(self):
     self.currentFileList = self.getFileList(self.incomingDataDirectory)
@@ -69,14 +92,14 @@ class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
     if status:
       self.updateStatus(status)
 
+  def stopWatching(self):
+    self.dataReceivedTimer.stop()
+    self.watchTimer.stop()
+
   def updateStatus(self, text):
     if text != self.currentStatus:
       self.currentStatus = text
       self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, text)
-
-  def stopWatching(self):
-    self.dataReceivedTimer.stop()
-    self.watchTimer.stop()
 
   def checkIfStillSameFileCount(self):
     self.currentFileList = self.getFileList(self.incomingDataDirectory)
@@ -351,6 +374,7 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservation
     self.dicomReceiver.addObserver(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, self.onReceiveFinished)
 
   def __del__(self):
+    super(IncomingDataWindow, self).__del__()
     if self.dicomReceiver:
       self.dicomReceiver.removeObservers()
 
@@ -437,6 +461,7 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin)
     self.showRatingValue = True
 
   def __del__(self):
+    super(RatingWindow, self).__del__()
     self.disconnectButtons()
 
   def isRatingEnabled(self):

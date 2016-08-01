@@ -6,6 +6,8 @@ class SlicerProstateEvents(object):
   IncomingDataCanceledEvent = vtk.vtkCommand.UserEvent + 201
   IncomingDataReceiveFinishedEvent = vtk.vtkCommand.UserEvent + 202
   IncomingFileCountChangedEvent = vtk.vtkCommand.UserEvent + 203
+  DICOMReceiverStartedEvent = vtk.vtkCommand.UserEvent + 204
+  DICOMReceiverStoppedEvent = vtk.vtkCommand.UserEvent + 205
 
   StatusChangedEvent = vtk.vtkCommand.UserEvent + 203
 

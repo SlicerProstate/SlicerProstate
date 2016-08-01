@@ -53,6 +53,7 @@ class CustomStatusProgressbar(qt.QWidget):
   def reset(self):
     self.text = ""
     self.progress.reset()
+    self.progress.maximum = 100
     self.refreshProgressVisibility()
 
   def refreshProgressVisibility(self):
