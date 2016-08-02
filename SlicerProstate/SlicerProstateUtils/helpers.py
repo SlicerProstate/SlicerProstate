@@ -3,15 +3,22 @@ import os, sys, ast
 import slicer, vtk, qt
 import xml.dom.minidom, datetime
 from constants import DICOMTAGS
+from decorators import logmethod
 from mixins import ModuleLogicMixin, ModuleWidgetMixin, ParameterNodeObservationMixin
 from events import SlicerProstateEvents
 
-class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
 
-  STATUS_WAITING = "Waiting for incoming DICOM data"
-  STATUS_RECEIVING = "Receiving DICOM data"
-  STATUS_COMPLETED = "DICOM data receive completed."
+class SmartDICOMReceiver(ModuleLogicMixin):
+
+  STATUS_PREFIX = "SmartDICOMReceiver: "
+  STATUS_WAITING = STATUS_PREFIX + "Waiting for incoming DICOM data"
+  STATUS_WATCHING_ONLY = STATUS_PREFIX + "Watching incoming data directory only (no storescp running)"
+  STATUS_RECEIVING = STATUS_PREFIX + "Receiving DICOM data"
+  STATUS_COMPLETED = STATUS_PREFIX + "DICOM data receive completed."
   AVAILABLE_STATES = [STATUS_WAITING,STATUS_RECEIVING,STATUS_COMPLETED]
+
+  SUPPORTED_EVENTS = [SlicerProstateEvents.DICOMReceiverStartedEvent, SlicerProstateEvents.DICOMReceiverStoppedEvent,
+                      SlicerProstateEvents.StatusChangedEvent, SlicerProstateEvents.IncomingDataReceiveFinishedEvent]
 
   def __init__(self, incomingDataDirectory):
     self.incomingDataDirectory = incomingDataDirectory
@@ -19,57 +26,87 @@ class SmartDICOMReceiver(ModuleLogicMixin, ParameterNodeObservationMixin):
     self.setupTimers()
     self.reset()
 
+  @logmethod
+  def __del__(self):
+    self.stop()
+    super(SmartDICOMReceiver, self).__del__()
+
   def reset(self):
     self.startingFileList = []
     self.currentFileList = []
     self.dataHasBeenReceived = False
     self.currentStatus = ""
+    self._running = False
+
+  def isRunning(self):
+    return self._running
 
   def setupTimers(self):
     self.dataReceivedTimer = self.createTimer(interval=5000, slot=self.checkIfStillSameFileCount, singleShot=True)
     self.watchTimer = self.createTimer(interval=1000, slot=self.startWatching, singleShot=True)
 
-  def start(self):
+  def forceStatusChangeEvent(self):
+    self.currentStatus = "Force update"
+
+  def start(self, runStoreSCP=True):
     self.stop()
 
     self.startingFileList = self.getFileList(self.incomingDataDirectory)
     self.lastFileCount = len(self.startingFileList)
-
-    self.storeSCPProcess = DICOMLib.DICOMStoreSCPProcess(incomingDataDir=self.incomingDataDirectory)
+    if runStoreSCP:
+      self.startStoreSCP()
+    self.invokeEvent(SlicerProstateEvents.DICOMReceiverStartedEvent)
+    self._running = True
     self.startWatching()
-    self.storeSCPProcess.start()
 
   def stop(self):
-    self.stopWatching()
+    if self._running:
+      self.stopWatching()
+      self.stopStoreSCP()
+      self.reset()
+      self.invokeEvent(SlicerProstateEvents.DICOMReceiverStoppedEvent)
+
+  def startStoreSCP(self):
+    self.stopStoreSCP()
+    self.storeSCPProcess = DICOMLib.DICOMStoreSCPProcess(incomingDataDir=self.incomingDataDirectory)
+    self.storeSCPProcess.start()
+
+  def stopStoreSCP(self):
     if self.storeSCPProcess:
       self.storeSCPProcess.stop()
-    self.reset()
+      self.storeSCPProcess = None
 
   def startWatching(self):
+    if not self._running:
+      return
     self.currentFileList = self.getFileList(self.incomingDataDirectory)
-    status = self.STATUS_RECEIVING
-    if self.lastFileCount != len(self.currentFileList):
+    status = None
+    currentFileListCount = len(self.currentFileList)
+    if self.lastFileCount != currentFileListCount:
       self.dataHasBeenReceived = True
-      self.lastFileCount = len(self.currentFileList)
+      self.lastFileCount = currentFileListCount
+      receivedFileCount = abs(len(self.startingFileList)-currentFileListCount)
+      self.invokeEvent(SlicerProstateEvents.IncomingFileCountChangedEvent, receivedFileCount)
+      status = self.STATUS_PREFIX + "Received %d files" % receivedFileCount
       self.watchTimer.start()
     elif self.dataHasBeenReceived:
-      self.lastFileCount = len(self.currentFileList)
+      self.lastFileCount = currentFileListCount
       self.dataHasBeenReceived = False
       self.dataReceivedTimer.start()
     else:
-      status = self.STATUS_WAITING
+      status = self.STATUS_WAITING if self.storeSCPProcess else self.STATUS_WATCHING_ONLY
       self.watchTimer.start()
-    self.updateStatus(status)
-
-  def updateStatus(self, text):
-    if text != self.currentStatus:
-      self.currentStatus = text
-      self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, [text, len(self.AVAILABLE_STATES)-1,
-                                                                 self.AVAILABLE_STATES.index(text)].__str__())
+    if status:
+      self.updateStatus(status)
 
   def stopWatching(self):
     self.dataReceivedTimer.stop()
     self.watchTimer.stop()
+
+  def updateStatus(self, text):
+    if text != self.currentStatus:
+      self.currentStatus = text
+      self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, text)
 
   def checkIfStillSameFileCount(self):
     self.currentFileList = self.getFileList(self.incomingDataDirectory)
@@ -344,17 +381,15 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservation
     self.dicomReceiver.addObserver(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, self.onReceiveFinished)
 
   def __del__(self):
+    super(IncomingDataWindow, self).__del__()
     if self.dicomReceiver:
       self.dicomReceiver.removeObservers()
 
   @vtk.calldata_type(vtk.VTK_STRING)
   def onStatusChanged(self, caller, event, callData):
-    text, steps, currentStep = ast.literal_eval(callData)
-    self.textLabel.text = text
-    self.progress.maximum = 0 if currentStep == 0 and self.progress.maximum == 0 else steps
+    self.textLabel.text = callData
+    self.progress.maximum = 0
     self.skipButton.enabled = self.progress.maximum == 0
-    if currentStep:
-      self.progress.value = currentStep
 
   def show(self, disableWidget=None):
     self.disabledWidget = disableWidget
@@ -433,6 +468,7 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin)
     self.showRatingValue = True
 
   def __del__(self):
+    super(RatingWindow, self).__del__()
     self.disconnectButtons()
 
   def isRatingEnabled(self):
