@@ -73,3 +73,24 @@ def beforeRunProcessEvents(func):
     slicer.app.processEvents()
     func(*args, **kwargs)
   return wrapper
+
+
+def callCount(level=logging.DEBUG):
+
+  def decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+      args_map = {}
+      if args or kwargs:
+        args_map = inspect.getcallargs(func, *args, **kwargs)
+      className = ""
+      if 'self' in args_map:
+        cls = args_map['self'].__class__
+        className = cls.__name__ + '.'
+      wrapper.count += 1
+      logging.log(level, "{}{} called {} times".format(className, func.__name__, wrapper.count))
+      return func(*args, **kwargs)
+
+    wrapper.count = 0
+    return wrapper
+  return decorator
