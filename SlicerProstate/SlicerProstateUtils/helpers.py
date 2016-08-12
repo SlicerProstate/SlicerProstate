@@ -546,6 +546,8 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin)
 
 class WatchBoxAttribute(object):
 
+  ENCRYPTED_PLACEHOLDER = "X"
+
   @property
   def title(self):
     return self.titleLabel.text
@@ -555,21 +557,48 @@ class WatchBoxAttribute(object):
     self.titleLabel.text = value if value else ""
 
   @property
+  def encrypted(self):
+    return self._encrypted
+
+  @encrypted.setter
+  def encrypted(self, value):
+    if self._encrypted == value:
+      return
+    self._encrypted = value
+    self.updateVisibleValues(self.originalValue if not self.encrypted else self.encryptedValue(self.originalValue))
+
+  @property
   def value(self):
     return self.valueLabel.text
 
   @value.setter
   def value(self, value):
-    self.valueLabel.text = value if value else ""
-    self.valueLabel.toolTip = value if value else ""
+    self.originalValue = str(value) if value else ""
+    self.updateVisibleValues(self.originalValue if not self.encrypted else self.encryptedValue(self.originalValue))
 
-  def __init__(self, name, title, tags=None):
+  @property
+  def originalValue(self):
+    return self._value
+
+  @originalValue.setter
+  def originalValue(self, value):
+    self._value = value
+
+  def __init__(self, name, title, tags=None, encrypted=False):
     self.name = name
+    self._encrypted = encrypted
     self.titleLabel = qt.QLabel()
     self.valueLabel = qt.QLabel()
     self.title = title
     self.tags = None if not tags else tags if type(tags) is list else [str(tags)]
     self.value = None
+
+  def updateVisibleValues(self, value):
+    self.valueLabel.text = value
+    self.valueLabel.toolTip = value
+
+  def encryptedValue(self, value):
+    return self.ENCRYPTED_PLACEHOLDER * len(value)
 
 
 class BasicInformationWatchBox(qt.QGroupBox):
@@ -614,7 +643,7 @@ class BasicInformationWatchBox(qt.QGroupBox):
 
   def getInformation(self, attributeName):
     attribute = self.getAttribute(attributeName)
-    return attribute.value
+    return attribute.value if not attribute.encrypted else attribute.originalValue
 
   def formatDate(self, dateToFormat):
     if dateToFormat and dateToFormat != "":
