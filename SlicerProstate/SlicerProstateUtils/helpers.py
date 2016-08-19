@@ -2,10 +2,158 @@ import DICOMLib
 import os, sys, ast
 import slicer, vtk, qt
 import xml.dom.minidom, datetime
+import logging
+import urllib
+from urllib import FancyURLopener
 from constants import DICOMTAGS
 from decorators import logmethod
 from mixins import ModuleLogicMixin, ModuleWidgetMixin, ParameterNodeObservationMixin
 from events import SlicerProstateEvents
+
+
+class SampleDataDownloader(FancyURLopener, ParameterNodeObservationMixin):
+
+  def __init__(self, enableLogging=False):
+    super(SampleDataDownloader, self).__init__()
+    self.loggingEnabled = enableLogging
+    self.isDownloading = False
+    self.resetAndInitialize()
+
+  def resetAndInitialize(self):
+    self._cancelDownload=False
+    self.wasCanceled = False
+    if self.isDownloading:
+      self.cancelDownload()
+    self.removeObservers()
+    if self.loggingEnabled:
+      self._addOwnObservers()
+
+  def _addOwnObservers(self):
+    for event in self.EVENTS.values():
+      self.addObserver(event, self.logMessage)
+
+  def __del__(self):
+    super(SampleDataDownloader, self).__del__()
+
+  EVENTS = {'status_changed':SlicerProstateEvents.StatusChangedEvent,
+            'download_canceled': SlicerProstateEvents.DownloadCanceledEvent, # TODO: Implement cancel
+            'download_finished': SlicerProstateEvents.DownloadFinishedEvent,
+            'download_failed': SlicerProstateEvents.DownloadFailedEvent}
+
+  @vtk.calldata_type(vtk.VTK_STRING)
+  def logMessage(self, caller, event, callData):
+    message, _ = ast.literal_eval(callData)
+    logging.debug(message)
+
+  def downloadFileIntoCache(self, uri, name):
+    return self.downloadFile(uri, slicer.mrmlScene.GetCacheManager().GetRemoteCacheDirectory(), name)
+
+  def downloadFile(self, uri, destFolderPath, name):
+    if self.isDownloading:
+      self.cancelDownload()
+    self._cancelDownload = False
+    self.wasCanceled = False
+    filePath = os.path.join(destFolderPath, name)
+    if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
+      self.downloadPercent = 0
+      self.invokeEvent(self.EVENTS['status_changed'], ['Requesting download %s from %s...' % (name, uri),
+                                                       self.downloadPercent].__str__())
+      try:
+        self.isDownloading = True
+        self.retrieve(uri, filePath, self.reportHook)
+        self.invokeEvent(self.EVENTS['status_changed'], ['Download finished', self.downloadPercent].__str__())
+        # self.invokeEvent(self.EVENTS['download_finished'])
+      except IOError as e:
+        self.invokeEvent(self.EVENTS['download_failed'], ['Download failed: %s' % e, self.downloadPercent].__str__())
+    else:
+      self.invokeEvent(self.EVENTS['status_changed'], ['File already exists in cache - reusing it.', 100].__str__())
+    return filePath
+
+  def cancelDownload(self):
+    self._cancelDownload=True
+
+  def humanFormatSize(self, size):
+    """ from http://stackoverflow.com/questions/1094841/reusable-library-to-get-human-readable-version-of-file-size"""
+    for x in ['bytes', 'KB', 'MB', 'GB']:
+      if -1024.0 < size < 1024.0:
+        return "%3.1f %s" % (size, x)
+      size /= 1024.0
+    return "%3.1f %s" % (size, 'TB')
+
+  def reportHook(self, blocksSoFar, blockSize, totalSize):
+    percent = min(int((100. * blocksSoFar * blockSize) / totalSize), 100)
+    humanSizeSoFar = self.humanFormatSize(min(blocksSoFar * blockSize, totalSize))
+    humanSizeTotal = self.humanFormatSize(totalSize)
+    self.downloadPercent = percent
+    self.invokeEvent(self.EVENTS['status_changed'],
+                     ['Downloaded %s (%d%% of %s)...' % (humanSizeSoFar, percent, humanSizeTotal),
+                      self.downloadPercent].__str__())
+
+  def retrieve(self, url, filename=None, reporthook=None, data=None):
+    # overridden method from urllib.URLopener
+    self._cancelDownload=False
+    url = urllib.unwrap(urllib.toBytes(url))
+    if self.tempcache and url in self.tempcache:
+      return self.tempcache[url]
+    type, url1 = urllib.splittype(url)
+    if filename is None and (not type or type == 'file'):
+      try:
+        fp = self.open_local_file(url1)
+        hdrs = fp.info()
+        fp.close()
+        return urllib.url2pathname(urllib.splithost(url1)[1]), hdrs
+      except IOError:
+        pass
+    fp = self.open(url, data)
+    try:
+      headers = fp.info()
+      if filename:
+        tfp = open(filename, 'wb')
+      else:
+        import tempfile
+        garbage, path = urllib.splittype(url)
+        garbage, path = urllib.splithost(path or "")
+        path, garbage = urllib.splitquery(path or "")
+        path, garbage = urllib.splitattr(path or "")
+        suffix = os.path.splitext(path)[1]
+        (fd, filename) = tempfile.mkstemp(suffix)
+        self.__tempfiles.append(filename)
+        tfp = os.fdopen(fd, 'wb')
+      try:
+        result = filename, headers
+        if self.tempcache is not None:
+          self.tempcache[url] = result
+        bs = 1024 * 8
+        size = -1
+        read = 0
+        blocknum = 0
+        if "content-length" in headers:
+          size = int(headers["Content-Length"])
+        if reporthook:
+          reporthook(blocknum, bs, size)
+        while not self._cancelDownload:
+          block = fp.read(bs)
+          if block == "":
+            break
+          read += len(block)
+          tfp.write(block)
+          blocknum += 1
+          if reporthook:
+            reporthook(blocknum, bs, size)
+      finally:
+        tfp.close()
+    finally:
+      fp.close()
+
+    # raise exception if actual size does not match content-length header
+    if size >= 0 and read < size:
+      raise urllib.ContentTooShortError("retrieval incomplete: got only %i out "
+                                 "of %i bytes" % (read, size), result)
+
+    if self._cancelDownload and os.path.exists(filename):
+      os.remove(filename)
+      self.wasCanceled = True
+    return result
 
 
 class SmartDICOMReceiver(ModuleLogicMixin):
