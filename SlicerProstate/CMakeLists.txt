@@ -14,6 +14,7 @@ set(MODULE_PYTHON_SCRIPTS
   )
 
 set(MODULE_PYTHON_RESOURCES
+  Resources/Icons/cursor-window-level.png
   Resources/Icons/icon-star-filled.png
   Resources/Icons/icon-star-unfilled.png
   )

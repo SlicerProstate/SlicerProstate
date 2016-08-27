@@ -214,8 +214,8 @@ class ModuleWidgetMixin(GeneralModuleMixin):
     label = qt.QLabel(title)
     return self.extendQtGuiElementProperties(label, **kwargs)
 
-  def createButton(self, title, **kwargs):
-    button = qt.QPushButton(title)
+  def createButton(self, title, buttonClass=qt.QPushButton, **kwargs):
+    button = buttonClass(title)
     button.setCursor(qt.Qt.PointingHandCursor)
     return self.extendQtGuiElementProperties(button, **kwargs)
 
