@@ -173,14 +173,14 @@
   </parameters>
 
   <parameters>
-   <label>Gamma model outputs</label>
+   <label>Gamma distribution model outputs</label>
    <description>See Oshio et al. 2014</description>
    <image>
      <name>thetaMapFileName</name>
      <longflag>theta</longflag>
      <label>Theta parameter map</label>
      <channel>output</channel>
-     <description>Theta parameter of the gamma model</description>
+     <description>Theta parameter of the gamma distribution model</description>
    </image>
 
    <image>
@@ -188,7 +188,7 @@
      <longflag>k</longflag>
      <label>k map</label>
      <channel>output</channel>
-     <description>k map of the gamma model</description>
+     <description>k map of the gamma distribution model</description>
    </image>
 
    <image>
@@ -196,7 +196,7 @@
      <longflag>mode</longflag>
      <label>Mode map</label>
      <channel>output</channel>
-     <description>Mode map of the gamma model ( (k-1)*theta )</description>
+     <description>Mode map of the gamma distribution model ( (k-1)*theta )</description>
    </image>
 
   </parameters>
@@ -259,7 +259,7 @@
 
     <float-vector>
       <name>gammaInitParameters</name>
-      <label>Gamma model</label>
+      <label>Gamma distribution model</label>
       <longflag>gammaInitParameters</longflag>
       <description>List of initial model parameters in the following format (all numbers are floating point):initialScale,initialK,initialTheta</description>
       <default>0,1.5,0.002</default>
