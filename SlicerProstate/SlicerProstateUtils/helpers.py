@@ -694,7 +694,7 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin)
 
 class WatchBoxAttribute(object):
 
-  ENCRYPTED_PLACEHOLDER = "X"
+  MASKED_PLACEHOLDER = "X"
 
   @property
   def title(self):
@@ -705,15 +705,15 @@ class WatchBoxAttribute(object):
     self.titleLabel.text = value if value else ""
 
   @property
-  def encrypted(self):
-    return self._encrypted
+  def masked(self):
+    return self._masked
 
-  @encrypted.setter
-  def encrypted(self, value):
-    if self._encrypted == value:
+  @masked.setter
+  def masked(self, value):
+    if self._masked == value:
       return
-    self._encrypted = value
-    self.updateVisibleValues(self.originalValue if not self.encrypted else self.encryptedValue(self.originalValue))
+    self._masked = value
+    self.updateVisibleValues(self.originalValue if not self.masked else self.maskedValue(self.originalValue))
 
   @property
   def value(self):
@@ -722,7 +722,7 @@ class WatchBoxAttribute(object):
   @value.setter
   def value(self, value):
     self.originalValue = str(value) if value else ""
-    self.updateVisibleValues(self.originalValue if not self.encrypted else self.encryptedValue(self.originalValue))
+    self.updateVisibleValues(self.originalValue if not self.masked else self.maskedValue(self.originalValue))
 
   @property
   def originalValue(self):
@@ -732,9 +732,9 @@ class WatchBoxAttribute(object):
   def originalValue(self, value):
     self._value = value
 
-  def __init__(self, name, title, tags=None, encrypted=False):
+  def __init__(self, name, title, tags=None, masked=False):
     self.name = name
-    self._encrypted = encrypted
+    self._masked = masked
     self.titleLabel = qt.QLabel()
     self.valueLabel = qt.QLabel()
     self.title = title
@@ -745,8 +745,8 @@ class WatchBoxAttribute(object):
     self.valueLabel.text = value
     self.valueLabel.toolTip = value
 
-  def encryptedValue(self, value):
-    return self.ENCRYPTED_PLACEHOLDER * len(value)
+  def maskedValue(self, value):
+    return self.MASKED_PLACEHOLDER * len(value)
 
 
 class BasicInformationWatchBox(qt.QGroupBox):
@@ -791,7 +791,7 @@ class BasicInformationWatchBox(qt.QGroupBox):
 
   def getInformation(self, attributeName):
     attribute = self.getAttribute(attributeName)
-    return attribute.value if not attribute.encrypted else attribute.originalValue
+    return attribute.value if not attribute.masked else attribute.originalValue
 
   def formatDate(self, dateToFormat):
     if dateToFormat and dateToFormat != "":
