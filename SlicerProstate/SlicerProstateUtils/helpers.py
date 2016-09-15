@@ -732,12 +732,13 @@ class WatchBoxAttribute(object):
   def originalValue(self, value):
     self._value = value
 
-  def __init__(self, name, title, tags=None, masked=False):
+  def __init__(self, name, title, tags=None, masked=False, callback=None):
     self.name = name
     self._masked = masked
     self.titleLabel = qt.QLabel()
     self.valueLabel = qt.QLabel()
     self.title = title
+    self.callback = callback
     self.tags = None if not tags else tags if type(tags) is list else [str(tags)]
     self.value = None
 
@@ -821,10 +822,9 @@ class FileBasedInformationWatchBox(BasicInformationWatchBox):
   @sourceFile.setter
   def sourceFile(self, filePath):
     self._sourceFile = filePath
-    if filePath:
-      self.updateInformation()
-    else:
+    if not filePath:
       self.reset()
+    self.updateInformation()
 
   def __init__(self, attributes, title="", sourceFile=None, parent=None):
     super(FileBasedInformationWatchBox, self).__init__(attributes, title, parent)
@@ -838,6 +838,14 @@ class FileBasedInformationWatchBox(BasicInformationWatchBox):
     return self.DEFAULT_TAG_VALUE_SEPARATOR.join(values)
 
   def updateInformation(self):
+    for attribute in self.attributes:
+      if attribute.callback:
+        value = attribute.callback()
+      else:
+        value = self.updateInformationFromWatchBoxAttribute(attribute)
+      self.setInformation(attribute.name, value, toolTip=value)
+
+  def updateInformationFromWatchBoxAttribute(self, attribute):
     raise NotImplementedError
 
 
@@ -845,44 +853,55 @@ class XMLBasedInformationWatchBox(FileBasedInformationWatchBox):
 
   DATE_TAGS_TO_FORMAT = ["StudyDate", "PatientBirthDate", "SeriesDate", "ContentDate", "AcquisitionDate"]
 
+  @FileBasedInformationWatchBox.sourceFile.setter
+  def sourceFile(self, filePath):
+    self._sourceFile = filePath
+    if filePath:
+      self.dom = xml.dom.minidom.parse(self._sourceFile)
+    else:
+      self.reset()
+    self.updateInformation()
+
   def __init__(self, attributes, title="", sourceFile=None, parent=None):
     super(XMLBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent)
 
-  def updateInformation(self):
-    dom = xml.dom.minidom.parse(self._sourceFile)
+  def reset(self):
+    super(XMLBasedInformationWatchBox, self).reset()
+    self.dom = None
 
-    for attribute in self.attributes:
+  def updateInformationFromWatchBoxAttribute(self, attribute):
+    if attribute.tags and self.dom:
       values = []
       for tag in attribute.tags:
-        currentValue = ModuleLogicMixin.findElement(dom, tag)
+        currentValue = ModuleLogicMixin.findElement(self.dom, tag)
         if tag in self.DATE_TAGS_TO_FORMAT:
           currentValue = self.formatDate(currentValue)
         elif tag == "PatientName":
           currentValue = self.formatPatientName(currentValue)
         values.append(currentValue)
-      value = self._getTagValueFromTagValues(values)
-      self.setInformation(attribute.name, value, toolTip=value)
+      return self._getTagValueFromTagValues(values)
+    return ""
 
 
 class DICOMBasedInformationWatchBox(FileBasedInformationWatchBox):
 
-  DICOM_DATE_TAGS_TO_FORMAT = [DICOMTAGS.STUDY_DATE, DICOMTAGS.PATIENT_BIRTH_DATE]
+  DATE_TAGS_TO_FORMAT = [DICOMTAGS.STUDY_DATE, DICOMTAGS.PATIENT_BIRTH_DATE]
 
   def __init__(self, attributes, title="", sourceFile=None, parent=None):
     super(DICOMBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent)
 
-  def updateInformation(self):
-    for attribute in self.attributes:
+  def updateInformationFromWatchBoxAttribute(self, attribute):
+    if attribute.tags and self.sourceFile:
       values = []
       for tag in attribute.tags:
         currentValue = ModuleLogicMixin.getDICOMValue(self.sourceFile, tag, "")
-        if tag in self.DICOM_DATE_TAGS_TO_FORMAT:
+        if tag in self.DATE_TAGS_TO_FORMAT:
           currentValue = self.formatDate(currentValue)
         elif tag == DICOMTAGS.PATIENT_NAME:
           currentValue = self.formatPatientName(currentValue)
         values.append(currentValue)
-      value = self._getTagValueFromTagValues(values)
-      self.setInformation(attribute.name, value, toolTip=value)
+      return self._getTagValueFromTagValues(values)
+    return ""
 
 
 class TargetCreationWidget(ModuleWidgetMixin, ParameterNodeObservationMixin):
