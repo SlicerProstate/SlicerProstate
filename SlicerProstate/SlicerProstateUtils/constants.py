@@ -9,6 +9,7 @@ class DICOMTAGS:
   SERIES_DESCRIPTION    = '0008,103E'
   SERIES_NUMBER         = '0020,0011'
   STUDY_DATE            = '0008,0020'
+  STUDY_ID              = '0020,0010'
   STUDY_TIME            = '0008,0030'
   ACQUISITION_TIME      = '0008,0032'
 
