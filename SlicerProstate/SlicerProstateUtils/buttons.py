@@ -182,10 +182,32 @@ class BasicIconButton(qt.QPushButton):
   def __init__(self, title="", parent=None, **kwargs):
     qt.QPushButton.__init__(self, title, parent, **kwargs)
     self.setIcon(self.buttonIcon)
+    self._connectSignals()
+
+  def _connectSignals(self):
     self.destroyed.connect(self.onAboutToBeDestroyed)
 
   def onAboutToBeDestroyed(self, obj):
     obj.destroyed.disconnect(self.onAboutToBeDestroyed)
+
+
+class CrosshairButton(BasicIconButton):
+
+  FILE_NAME = 'SlicesCrosshair.png'
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(CrosshairButton, self).__init__(title, parent, **kwargs)
+    self.checkable = True
+    self.toolTip = "Show crosshair"
+    self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
+
+  def _connectSignals(self):
+    super(CrosshairButton, self)._connectSignals()
+    self.toggled.connect(self.onToggled)
+
+  def onToggled(self, checked):
+    self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic if checked
+                                        else slicer.vtkMRMLCrosshairNode.NoCrosshair)
 
 
 class LayoutButton(BasicIconButton):
@@ -199,8 +221,13 @@ class LayoutButton(BasicIconButton):
   def __init__(self, title="", parent=None, **kwargs):
     super(LayoutButton, self).__init__(title, parent, **kwargs)
     self.checkable = True
-    self.layoutManager.layoutChanged.connect(self.onLayoutChanged)
+    if not self.LAYOUT:
+      raise NotImplementedError("Member variable LAYOUT needs to be defined by all deriving classes")
+
+  def _connectSignals(self):
+    super(LayoutButton, self)._connectSignals()
     self.toggled.connect(self.onToggled)
+    self.layoutManager.layoutChanged.connect(self.onLayoutChanged)
 
   def onAboutToBeDestroyed(self, obj):
     super(LayoutButton, self).onAboutToBeDestroyed(obj)
@@ -211,9 +238,7 @@ class LayoutButton(BasicIconButton):
     self.checked = self.LAYOUT == layout
 
   def onToggled(self, checked):
-    if not self.LAYOUT:
-      raise NotImplementedError("member variable LAYOUT needs to be defined by all deriving classes")
-    if checked:
+    if checked and self.LAYOUT is not None:
       self.layoutManager.setLayout(self.LAYOUT)
 
 
@@ -224,6 +249,7 @@ class RedSliceLayoutButton(LayoutButton):
 
   def __init__(self, title="", parent=None, **kwargs):
     super(RedSliceLayoutButton, self).__init__(title, parent, **kwargs)
+    self.toolTip = "Red Slice Only Layout"
 
 
 class FourUpLayoutButton(LayoutButton):
@@ -233,6 +259,7 @@ class FourUpLayoutButton(LayoutButton):
 
   def __init__(self, title="", parent=None, **kwargs):
     super(FourUpLayoutButton, self).__init__(title, parent, **kwargs)
+    self.toolTip = "FourUp Layout"
 
 
 class SideBySideLayoutButton(LayoutButton):
@@ -242,3 +269,4 @@ class SideBySideLayoutButton(LayoutButton):
 
   def __init__(self, title="", parent=None, **kwargs):
     super(SideBySideLayoutButton, self).__init__(title, parent, **kwargs)
+    self.toolTip = "Side by Side Layout"
