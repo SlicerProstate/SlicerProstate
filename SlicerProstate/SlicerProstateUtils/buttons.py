@@ -1,0 +1,244 @@
+import qt, vtk, slicer
+import inspect, os, sys
+
+
+class WindowLevelEffectsButton(qt.QPushButton):
+
+  def __init__(self, title, sliceWidgets=None, parent=None, **kwargs):
+    qt.QPushButton.__init__(self, title, parent, **kwargs)
+    self.wlEffects = {}
+    self.setup(sliceWidgets)
+
+  def __del__(self):
+    self._disconnectSignals()
+
+  def setup(self, sliceWidgets):
+    lm = slicer.app.layoutManager()
+    if not sliceWidgets:
+      sliceWidgets = []
+      sliceLogics = lm.mrmlSliceLogics()
+      for n in range(sliceLogics.GetNumberOfItems()):
+        sliceLogic = sliceLogics.GetItemAsObject(n)
+        sliceWidgets.append(lm.sliceWidget(sliceLogic.GetName()))
+    for sliceWidget in sliceWidgets:
+      self.wlEffects[sliceWidget] = WindowLevelEffect(sliceWidget)
+    self._connectSignals()
+
+  def _connectSignals(self):
+    self.connect('toggled(bool)', self._onToggled)
+
+  def _disconnectSignals(self):
+    self.disconnect('toggled(bool)', self._onToggled)
+
+  def addSliceWidget(self, sliceWidget):
+    if not self.wlEffects.has_key(sliceWidget):
+      self.wlEffects[sliceWidget] = WindowLevelEffect(sliceWidget)
+
+  def removeSliceWidget(self, sliceWidget):
+    if self.wlEffects.has_key(sliceWidget):
+      self.wlEffects[sliceWidget].disable()
+      del self.wlEffects[sliceWidget]
+
+  def _onToggled(self, toggled):
+    if toggled:
+      self._enableWindowLevelEffects()
+    else:
+      self._disableWindowLevelEffects()
+
+  def _enableWindowLevelEffects(self):
+    for wlEffect in self.wlEffects.values():
+      wlEffect.enable()
+
+  def _disableWindowLevelEffects(self):
+    for wlEffect in self.wlEffects.values():
+      wlEffect.disable()
+
+
+class WindowLevelEffect(object):
+
+  EVENTS = [vtk.vtkCommand.LeftButtonPressEvent,
+            vtk.vtkCommand.LeftButtonReleaseEvent,
+            vtk.vtkCommand.MouseMoveEvent]
+
+  def __init__(self, sliceWidget):
+    self.actionState = None
+    self.startXYPosition = None
+    self.currentXYPosition = None
+    self.cursor = self.createWLCursor()
+
+    self.sliceWidget = sliceWidget
+    self.sliceLogic = sliceWidget.sliceLogic()
+    self.compositeNode = sliceWidget.mrmlSliceCompositeNode()
+    self.sliceView = self.sliceWidget.sliceView()
+    self.interactor = self.sliceView.interactorStyle().GetInteractor()
+
+    self.actionState = None
+
+    self.interactorObserverTags = []
+
+    self.bgStartWindowLevel = [0,0]
+    self.fgStartWindowLevel = [0,0]
+
+  def createWLCursor(self):
+    iconPath = os.path.join(os.path.dirname(sys.modules[self.__module__].__file__),
+                            '../Resources/Icons/cursor-window-level.png')
+    pixmap = qt.QPixmap(iconPath)
+    return qt.QCursor(qt.QIcon(pixmap).pixmap(32, 32), 0, 0)
+
+  def enable(self):
+    for e in self.EVENTS:
+      tag = self.interactor.AddObserver(e, self.processEvent, 1.0)
+      self.interactorObserverTags.append(tag)
+
+  def disable(self):
+    for tag in self.interactorObserverTags:
+      self.interactor.RemoveObserver(tag)
+    self.interactorObserverTags = []
+
+  def processEvent(self, caller=None, event=None):
+    """
+    handle events from the render window interactor
+    """
+    bgLayer = self.sliceLogic.GetBackgroundLayer()
+    fgLayer = self.sliceLogic.GetForegroundLayer()
+
+    bgNode = bgLayer.GetVolumeNode()
+    fgNode = fgLayer.GetVolumeNode()
+
+    changeFg = 1 if fgNode and self.compositeNode.GetForegroundOpacity() > 0.5 else 0
+    changeBg = not changeFg
+
+    if event == "LeftButtonPressEvent":
+      self.actionState = "dragging"
+      self.sliceWidget.setCursor(self.cursor)
+
+      xy = self.interactor.GetEventPosition()
+      self.startXYPosition = xy
+      self.currentXYPosition = xy
+
+      if bgNode:
+        bgDisplay = bgNode.GetDisplayNode()
+        self.bgStartWindowLevel = [bgDisplay.GetWindow(), bgDisplay.GetLevel()]
+      if fgNode:
+        fgDisplay = fgNode.GetDisplayNode()
+        self.fgStartWindowLevel = [fgDisplay.GetWindow(), fgDisplay.GetLevel()]
+      self.abortEvent(event)
+
+    elif event == "MouseMoveEvent":
+      if self.actionState == "dragging":
+        if bgNode and changeBg:
+          self.updateNodeWL(bgNode, self.bgStartWindowLevel, self.startXYPosition)
+        if fgNode and changeFg:
+          self.updateNodeWL(fgNode, self.fgStartWindowLevel, self.startXYPosition)
+        self.abortEvent(event)
+
+    elif event == "LeftButtonReleaseEvent":
+      self.sliceWidget.unsetCursor()
+      self.actionState = ""
+      self.abortEvent(event)
+
+  def updateNodeWL(self, node, startWindowLevel, startXY):
+
+    currentXY = self.interactor.GetEventPosition()
+
+    vDisplay = node.GetDisplayNode()
+    vImage = node.GetImageData()
+    vRange = vImage.GetScalarRange()
+
+    deltaX = currentXY[0]-startXY[0]
+    deltaY = currentXY[1]-startXY[1]
+    gain = (vRange[1]-vRange[0])/500.
+    newWindow = startWindowLevel[0]+(gain*deltaX)
+    newLevel = startWindowLevel[1]+(gain*deltaY)
+
+    vDisplay.SetAutoWindowLevel(0)
+    vDisplay.SetWindowLevel(newWindow, newLevel)
+    vDisplay.Modified()
+
+  def abortEvent(self, event):
+    """Set the AbortFlag on the vtkCommand associated
+    with the event - causes other things listening to the
+    interactor not to receive the events"""
+    # TODO: make interactorObserverTags a map to we can
+    # explicitly abort just the event we handled - it will
+    # be slightly more efficient
+    for tag in self.interactorObserverTags:
+      cmd = self.interactor.GetCommand(tag)
+      cmd.SetAbortFlag(1)
+
+
+class BasicIconButton(qt.QPushButton):
+
+  FILE_NAME=None
+
+  @property
+  def buttonIcon(self):
+    if not self.FILE_NAME:
+      return None
+    iconPath = os.path.join(os.path.dirname(inspect.getfile(self.__class__)), '../Resources/Icons', self.FILE_NAME)
+    pixmap = qt.QPixmap(iconPath)
+    return qt.QIcon(pixmap)
+
+  def __init__(self, title="", parent=None, **kwargs):
+    qt.QPushButton.__init__(self, title, parent, **kwargs)
+    self.setIcon(self.buttonIcon)
+    self.destroyed.connect(self.onAboutToBeDestroyed)
+
+  def onAboutToBeDestroyed(self, obj):
+    obj.destroyed.disconnect(self.onAboutToBeDestroyed)
+
+
+class LayoutButton(BasicIconButton):
+
+  LAYOUT=None
+
+  @property
+  def layoutManager(self):
+    return slicer.app.layoutManager()
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(LayoutButton, self).__init__(title, parent, **kwargs)
+    self.checkable = True
+    self.layoutManager.layoutChanged.connect(self.onLayoutChanged)
+    self.toggled.connect(self.onToggled)
+
+  def onAboutToBeDestroyed(self, obj):
+    super(LayoutButton, self).onAboutToBeDestroyed(obj)
+    self.layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
+
+  def onLayoutChanged(self, layout):
+    print "layout changed"
+    self.checked = self.LAYOUT == layout
+
+  def onToggled(self, checked):
+    if not self.LAYOUT:
+      raise NotImplementedError("member variable LAYOUT needs to be defined by all deriving classes")
+    if checked:
+      self.layoutManager.setLayout(self.LAYOUT)
+
+
+class RedSliceLayoutButton(LayoutButton):
+
+  FILE_NAME = 'LayoutOneUpRedSliceView.png'
+  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutOneUpRedSliceView
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(RedSliceLayoutButton, self).__init__(title, parent, **kwargs)
+
+
+class FourUpLayoutButton(LayoutButton):
+
+  FILE_NAME = 'LayoutFourUpView.png'
+  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpView
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(FourUpLayoutButton, self).__init__(title, parent, **kwargs)
+
+
+class SideBySideLayoutButton(LayoutButton):
+
+  FILE_NAME = 'LayoutSideBySideView.png'
+  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutSideBySideView
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(SideBySideLayoutButton, self).__init__(title, parent, **kwargs)
