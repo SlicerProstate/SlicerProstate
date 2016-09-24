@@ -1,5 +1,7 @@
 import qt, vtk, slicer
 import inspect, os, sys
+from events import SlicerProstateEvents
+from mixins import ParameterNodeObservationMixin
 
 
 class BasicIconButton(qt.QPushButton):
@@ -26,23 +28,45 @@ class BasicIconButton(qt.QPushButton):
     obj.destroyed.disconnect(self.onAboutToBeDestroyed)
 
 
-class CrosshairButton(BasicIconButton):
+class CrosshairButton(BasicIconButton, ParameterNodeObservationMixin):
 
   FILE_NAME = 'SlicesCrosshair.png'
+  CursorPositionModifiedEvent = SlicerProstateEvents.CursorPositionModifiedEvent
 
   def __init__(self, title="", parent=None, **kwargs):
     super(CrosshairButton, self).__init__(title, parent, **kwargs)
     self.checkable = True
     self.toolTip = "Show crosshair"
+    self.crosshairNodeObserverTag = None
     self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
+    self.connectCrosshairNode()
 
   def _connectSignals(self):
     super(CrosshairButton, self)._connectSignals()
     self.toggled.connect(self.onToggled)
 
+  def onAboutToBeDestroyed(self, obj):
+    super(CrosshairButton, self).onAboutToBeDestroyed(obj)
+    self.disconnectCrosshairNode()
+
+  def connectCrosshairNode(self):
+    if not self.crosshairNodeObserverTag:
+      self.crosshairNodeObserverTag = self.crosshairNode.AddObserver(self.CursorPositionModifiedEvent,
+                                                                     self.onCursorPositionChanged)
+
+  def disconnectCrosshairNode(self):
+    if self.crosshairNode and self.crosshairNodeObserverTag:
+      self.crosshairNode.RemoveObserver(self.crosshairNodeObserverTag)
+    self.crosshairNodeObserverTag = None
+
+  def onCursorPositionChanged(self, observee=None, event=None):
+    self.invokeEvent(self.CursorPositionModifiedEvent)
+
   def onToggled(self, checked):
-    self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic if checked
-                                        else slicer.vtkMRMLCrosshairNode.NoCrosshair)
+    if checked:
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic)
+    else:
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.NoCrosshair)
 
 
 class LayoutButton(BasicIconButton):
@@ -69,7 +93,6 @@ class LayoutButton(BasicIconButton):
     self.layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
 
   def onLayoutChanged(self, layout):
-    print "layout changed"
     self.checked = self.LAYOUT == layout
 
   def onToggled(self, checked):
