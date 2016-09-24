@@ -2,15 +2,125 @@ import qt, vtk, slicer
 import inspect, os, sys
 
 
-class WindowLevelEffectsButton(qt.QPushButton):
+class BasicIconButton(qt.QPushButton):
 
-  def __init__(self, title, sliceWidgets=None, parent=None, **kwargs):
+  FILE_NAME=None
+
+  @property
+  def buttonIcon(self):
+    if not self.FILE_NAME:
+      return None
+    iconPath = os.path.join(os.path.dirname(inspect.getfile(self.__class__)), '../Resources/Icons', self.FILE_NAME)
+    pixmap = qt.QPixmap(iconPath)
+    return qt.QIcon(pixmap)
+
+  def __init__(self, title="", parent=None, **kwargs):
     qt.QPushButton.__init__(self, title, parent, **kwargs)
+    self.setIcon(self.buttonIcon)
+    self._connectSignals()
+
+  def _connectSignals(self):
+    self.destroyed.connect(self.onAboutToBeDestroyed)
+
+  def onAboutToBeDestroyed(self, obj):
+    obj.destroyed.disconnect(self.onAboutToBeDestroyed)
+
+
+class CrosshairButton(BasicIconButton):
+
+  FILE_NAME = 'SlicesCrosshair.png'
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(CrosshairButton, self).__init__(title, parent, **kwargs)
+    self.checkable = True
+    self.toolTip = "Show crosshair"
+    self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
+
+  def _connectSignals(self):
+    super(CrosshairButton, self)._connectSignals()
+    self.toggled.connect(self.onToggled)
+
+  def onToggled(self, checked):
+    self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic if checked
+                                        else slicer.vtkMRMLCrosshairNode.NoCrosshair)
+
+
+class LayoutButton(BasicIconButton):
+
+  LAYOUT=None
+
+  @property
+  def layoutManager(self):
+    return slicer.app.layoutManager()
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(LayoutButton, self).__init__(title, parent, **kwargs)
+    self.checkable = True
+    if not self.LAYOUT:
+      raise NotImplementedError("Member variable LAYOUT needs to be defined by all deriving classes")
+
+  def _connectSignals(self):
+    super(LayoutButton, self)._connectSignals()
+    self.toggled.connect(self.onToggled)
+    self.layoutManager.layoutChanged.connect(self.onLayoutChanged)
+
+  def onAboutToBeDestroyed(self, obj):
+    super(LayoutButton, self).onAboutToBeDestroyed(obj)
+    self.layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
+
+  def onLayoutChanged(self, layout):
+    print "layout changed"
+    self.checked = self.LAYOUT == layout
+
+  def onToggled(self, checked):
+    if checked and self.LAYOUT is not None:
+      self.layoutManager.setLayout(self.LAYOUT)
+
+
+class RedSliceLayoutButton(LayoutButton):
+
+  FILE_NAME = 'LayoutOneUpRedSliceView.png'
+  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutOneUpRedSliceView
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(RedSliceLayoutButton, self).__init__(title, parent, **kwargs)
+    self.toolTip = "Red Slice Only Layout"
+
+
+class FourUpLayoutButton(LayoutButton):
+
+  FILE_NAME = 'LayoutFourUpView.png'
+  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpView
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(FourUpLayoutButton, self).__init__(title, parent, **kwargs)
+    self.toolTip = "FourUp Layout"
+
+
+class SideBySideLayoutButton(LayoutButton):
+
+  FILE_NAME = 'LayoutSideBySideView.png'
+  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutSideBySideView
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(SideBySideLayoutButton, self).__init__(title, parent, **kwargs)
+    self.toolTip = "Side by Side Layout"
+
+
+class WindowLevelEffectsButton(BasicIconButton):
+
+  FILE_NAME = 'icon-WindowLevelEffect.png'
+
+  def __init__(self, title="", sliceWidgets=None, parent=None, **kwargs):
+    super(WindowLevelEffectsButton, self).__init__(title, parent, **kwargs)
+    self.checkable = True
+    self.toolTip = "Change W/L with respect to FG and BG opacity"
     self.wlEffects = {}
     self.setup(sliceWidgets)
 
-  def __del__(self):
-    self._disconnectSignals()
+  def _connectSignals(self):
+    super(WindowLevelEffectsButton, self)._connectSignals()
+    self.toggled.connect(self.onToggled)
 
   def setup(self, sliceWidgets):
     lm = slicer.app.layoutManager()
@@ -22,13 +132,6 @@ class WindowLevelEffectsButton(qt.QPushButton):
         sliceWidgets.append(lm.sliceWidget(sliceLogic.GetName()))
     for sliceWidget in sliceWidgets:
       self.wlEffects[sliceWidget] = WindowLevelEffect(sliceWidget)
-    self._connectSignals()
-
-  def _connectSignals(self):
-    self.connect('toggled(bool)', self._onToggled)
-
-  def _disconnectSignals(self):
-    self.disconnect('toggled(bool)', self._onToggled)
 
   def addSliceWidget(self, sliceWidget):
     if not self.wlEffects.has_key(sliceWidget):
@@ -39,7 +142,7 @@ class WindowLevelEffectsButton(qt.QPushButton):
       self.wlEffects[sliceWidget].disable()
       del self.wlEffects[sliceWidget]
 
-  def _onToggled(self, toggled):
+  def onToggled(self, toggled):
     if toggled:
       self._enableWindowLevelEffects()
     else:
@@ -165,108 +268,3 @@ class WindowLevelEffect(object):
     for tag in self.interactorObserverTags:
       cmd = self.interactor.GetCommand(tag)
       cmd.SetAbortFlag(1)
-
-
-class BasicIconButton(qt.QPushButton):
-
-  FILE_NAME=None
-
-  @property
-  def buttonIcon(self):
-    if not self.FILE_NAME:
-      return None
-    iconPath = os.path.join(os.path.dirname(inspect.getfile(self.__class__)), '../Resources/Icons', self.FILE_NAME)
-    pixmap = qt.QPixmap(iconPath)
-    return qt.QIcon(pixmap)
-
-  def __init__(self, title="", parent=None, **kwargs):
-    qt.QPushButton.__init__(self, title, parent, **kwargs)
-    self.setIcon(self.buttonIcon)
-    self._connectSignals()
-
-  def _connectSignals(self):
-    self.destroyed.connect(self.onAboutToBeDestroyed)
-
-  def onAboutToBeDestroyed(self, obj):
-    obj.destroyed.disconnect(self.onAboutToBeDestroyed)
-
-
-class CrosshairButton(BasicIconButton):
-
-  FILE_NAME = 'SlicesCrosshair.png'
-
-  def __init__(self, title="", parent=None, **kwargs):
-    super(CrosshairButton, self).__init__(title, parent, **kwargs)
-    self.checkable = True
-    self.toolTip = "Show crosshair"
-    self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
-
-  def _connectSignals(self):
-    super(CrosshairButton, self)._connectSignals()
-    self.toggled.connect(self.onToggled)
-
-  def onToggled(self, checked):
-    self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic if checked
-                                        else slicer.vtkMRMLCrosshairNode.NoCrosshair)
-
-
-class LayoutButton(BasicIconButton):
-
-  LAYOUT=None
-
-  @property
-  def layoutManager(self):
-    return slicer.app.layoutManager()
-
-  def __init__(self, title="", parent=None, **kwargs):
-    super(LayoutButton, self).__init__(title, parent, **kwargs)
-    self.checkable = True
-    if not self.LAYOUT:
-      raise NotImplementedError("Member variable LAYOUT needs to be defined by all deriving classes")
-
-  def _connectSignals(self):
-    super(LayoutButton, self)._connectSignals()
-    self.toggled.connect(self.onToggled)
-    self.layoutManager.layoutChanged.connect(self.onLayoutChanged)
-
-  def onAboutToBeDestroyed(self, obj):
-    super(LayoutButton, self).onAboutToBeDestroyed(obj)
-    self.layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
-
-  def onLayoutChanged(self, layout):
-    print "layout changed"
-    self.checked = self.LAYOUT == layout
-
-  def onToggled(self, checked):
-    if checked and self.LAYOUT is not None:
-      self.layoutManager.setLayout(self.LAYOUT)
-
-
-class RedSliceLayoutButton(LayoutButton):
-
-  FILE_NAME = 'LayoutOneUpRedSliceView.png'
-  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutOneUpRedSliceView
-
-  def __init__(self, title="", parent=None, **kwargs):
-    super(RedSliceLayoutButton, self).__init__(title, parent, **kwargs)
-    self.toolTip = "Red Slice Only Layout"
-
-
-class FourUpLayoutButton(LayoutButton):
-
-  FILE_NAME = 'LayoutFourUpView.png'
-  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpView
-
-  def __init__(self, title="", parent=None, **kwargs):
-    super(FourUpLayoutButton, self).__init__(title, parent, **kwargs)
-    self.toolTip = "FourUp Layout"
-
-
-class SideBySideLayoutButton(LayoutButton):
-
-  FILE_NAME = 'LayoutSideBySideView.png'
-  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutSideBySideView
-
-  def __init__(self, title="", parent=None, **kwargs):
-    super(SideBySideLayoutButton, self).__init__(title, parent, **kwargs)
-    self.toolTip = "Side by Side Layout"

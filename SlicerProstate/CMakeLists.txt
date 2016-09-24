@@ -22,6 +22,7 @@ set(MODULE_PYTHON_RESOURCES
   Resources/Icons/LayoutOneUpRedSliceView.png
   Resources/Icons/LayoutSideBySideView.png
   Resources/Icons/SlicesCrosshair.png
+  Resources/Icons/icon-WindowLevelEffect.png
   )
 
 #-----------------------------------------------------------------------------
