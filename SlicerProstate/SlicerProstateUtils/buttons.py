@@ -60,7 +60,7 @@ class CrosshairButton(BasicIconButton, ParameterNodeObservationMixin):
     self.crosshairNodeObserverTag = None
 
   def onCursorPositionChanged(self, observee=None, event=None):
-    self.invokeEvent(self.CursorPositionModifiedEvent)
+    self.invokeEvent(self.CursorPositionModifiedEvent, self.crosshairNode)
 
   def onToggled(self, checked):
     if checked:
