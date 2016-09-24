@@ -134,27 +134,44 @@ class WindowLevelEffectsButton(BasicIconButton):
 
   FILE_NAME = 'icon-WindowLevelEffect.png'
 
+  @property
+  def sliceWidgets(self):
+    return self._sliceWidgets
+
+  @sliceWidgets.setter
+  def sliceWidgets(self, value):
+    self._sliceWidgets = value
+    self.setup()
+
   def __init__(self, title="", sliceWidgets=None, parent=None, **kwargs):
     super(WindowLevelEffectsButton, self).__init__(title, parent, **kwargs)
     self.checkable = True
     self.toolTip = "Change W/L with respect to FG and BG opacity"
     self.wlEffects = {}
-    self.setup(sliceWidgets)
+    self.sliceWidgets = sliceWidgets
+
+  def refreshForAllAvailableSliceWidgets(self):
+    self.sliceWidgets = None
 
   def _connectSignals(self):
     super(WindowLevelEffectsButton, self)._connectSignals()
     self.toggled.connect(self.onToggled)
 
-  def setup(self, sliceWidgets):
+  def setup(self):
     lm = slicer.app.layoutManager()
-    if not sliceWidgets:
-      sliceWidgets = []
+    if not self.sliceWidgets:
+      self._sliceWidgets = []
       sliceLogics = lm.mrmlSliceLogics()
       for n in range(sliceLogics.GetNumberOfItems()):
         sliceLogic = sliceLogics.GetItemAsObject(n)
-        sliceWidgets.append(lm.sliceWidget(sliceLogic.GetName()))
-    for sliceWidget in sliceWidgets:
-      self.wlEffects[sliceWidget] = WindowLevelEffect(sliceWidget)
+        self._sliceWidgets.append(lm.sliceWidget(sliceLogic.GetName()))
+    for sliceWidget in self._sliceWidgets :
+      self.addSliceWidget(sliceWidget)
+
+  def cleanupSliceWidgets(self):
+    for sliceWidget in self.wlEffects.keys():
+      if sliceWidget not in self._sliceWidgets:
+        self.removeSliceWidget(sliceWidget)
 
   def addSliceWidget(self, sliceWidget):
     if not self.wlEffects.has_key(sliceWidget):
