@@ -1,6 +1,8 @@
 import qt, vtk, ctk
 import os, logging
 import slicer
+import SimpleITK as sitk
+import sitkUtils
 from SlicerProstateUtils.decorators import logmethod
 from SlicerProstateUtils.widgets import CustomStatusProgressbar
 
@@ -336,6 +338,27 @@ class ModuleLogicMixin(GeneralModuleMixin):
     dilateErode.SetKernelSize(kernelSizePixel[0], kernelSizePixel[1], kernelSizePixel[2])
     dilateErode.Update()
     label.SetAndObserveImageData(dilateErode.GetOutput())
+
+  @staticmethod
+  def getCentroidForLabel(label, value):
+    ls = sitk.LabelShapeStatisticsImageFilter()
+    dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(label.GetName())
+    try:
+      dstLabelImage = sitk.ReadImage(dstLabelAddress)
+    except RuntimeError as exc:
+      return None
+    ls.Execute(dstLabelImage)
+    centroid = ls.GetCentroid(value)
+    IJKtoRAS = vtk.vtkMatrix4x4()
+    label.GetIJKToRASMatrix(IJKtoRAS)
+    order = label.ComputeScanOrderFromIJKToRAS(IJKtoRAS)
+    if order == 'IS':
+      centroid = [-centroid[0], -centroid[1], centroid[2]]
+    elif order == 'AP':
+      centroid = [-centroid[0], -centroid[2], -centroid[1]]
+    elif order == 'LR':
+      centroid = [centroid[0], -centroid[2], -centroid[1]]
+    return centroid
 
   @staticmethod
   def applyOtsuFilter(volume):

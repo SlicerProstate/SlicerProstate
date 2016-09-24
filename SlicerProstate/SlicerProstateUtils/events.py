@@ -1,4 +1,4 @@
-import vtk
+import vtk, slicer
 
 class SlicerProstateEvents(object):
 
@@ -19,3 +19,5 @@ class SlicerProstateEvents(object):
   DownloadCanceledEvent = vtk.vtkCommand.UserEvent + 401
   DownloadFinishedEvent = vtk.vtkCommand.UserEvent + 402
   DownloadFailedEvent = vtk.vtkCommand.UserEvent + 403
+
+  CursorPositionModifiedEvent = slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent
