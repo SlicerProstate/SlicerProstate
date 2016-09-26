@@ -90,7 +90,8 @@ class LayoutButton(BasicIconButton):
 
   def onAboutToBeDestroyed(self, obj):
     super(LayoutButton, self).onAboutToBeDestroyed(obj)
-    self.layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
+    if self.layoutManager:
+      self.layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
 
   def onLayoutChanged(self, layout):
     self.checked = self.LAYOUT == layout
