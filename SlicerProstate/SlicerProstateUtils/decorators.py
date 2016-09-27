@@ -94,3 +94,36 @@ def callCount(level=logging.DEBUG):
     wrapper.count = 0
     return wrapper
   return decorator
+
+
+class MultiMethodRegistrations(object):
+
+  registry = {}
+
+class MultiMethod(object):
+  # source: http://www.artima.com/weblogs/viewpost.jsp?thread=101605
+  def __init__(self, name):
+    self.name = name
+    self.typemap = {}
+  def __call__(self, *args):
+    types = tuple(arg.__class__ for arg in args) # a generator expression!
+    function = self.typemap.get(types)
+    if function is None:
+      raise TypeError("no match")
+    return function(*args)
+  def register(self, types, function):
+    if types in self.typemap:
+      raise TypeError("duplicate registration")
+    self.typemap[types] = function
+
+
+def multimethod(*types):
+  # source: http://www.artima.com/weblogs/viewpost.jsp?thread=101605
+  def register(function):
+    name = function.__name__
+    mm = MultiMethodRegistrations.registry.get(name)
+    if mm is None:
+      mm = MultiMethodRegistrations.registry[name] = MultiMethod(name)
+    mm.register(types, function)
+    return mm
+  return register

@@ -3,7 +3,7 @@ import os, logging
 import slicer
 import SimpleITK as sitk
 import sitkUtils
-from SlicerProstateUtils.decorators import logmethod
+from SlicerProstateUtils.decorators import logmethod, multimethod
 from SlicerProstateUtils.widgets import CustomStatusProgressbar
 
 
@@ -399,13 +399,32 @@ class ModuleLogicMixin(GeneralModuleMixin):
         return ""
 
   @staticmethod
-  def getDICOMValue(currentFile, tag, fallback=None):
+  @multimethod(str, str)
+  def getDICOMValue(currentFile, tag):
+    return ModuleLogicMixin.getDICOMValue(currentFile, tag, "")
+
+  @staticmethod
+  @multimethod(str, str, str)
+  def getDICOMValue(currentFile, tag, default):
     try:
-      value = slicer.dicomDatabase.fileValue(currentFile, tag)
+      return slicer.dicomDatabase.fileValue(currentFile, tag)
     except RuntimeError:
       logging.info("There are problems with accessing DICOM value %s from file %s" % (tag, currentFile))
-      value = fallback
-    return value
+      return None if default == "" else default
+
+  @staticmethod
+  @multimethod(slicer.vtkMRMLScalarVolumeNode, str)
+  def getDICOMValue(volumeNode, tag):
+    return ModuleLogicMixin.getDICOMValue(volumeNode, tag, "")
+
+  @staticmethod
+  @multimethod(slicer.vtkMRMLScalarVolumeNode, str, str)
+  def getDICOMValue(volumeNode, tag, default):
+    try:
+      currentFile = volumeNode.GetStorageNode().GetFileName()
+      return ModuleLogicMixin.getDICOMValue(currentFile, tag, default)
+    except (RuntimeError, AttributeError):
+      return None if default == "" else default
 
   @staticmethod
   def getFileList(directory):
