@@ -340,24 +340,39 @@ class ModuleLogicMixin(GeneralModuleMixin):
     label.SetAndObserveImageData(dilateErode.GetOutput())
 
   @staticmethod
-  def getCentroidForLabel(label, value):
-    ls = sitk.LabelShapeStatisticsImageFilter()
-    dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(label.GetName())
-    try:
-      dstLabelImage = sitk.ReadImage(dstLabelAddress)
-    except RuntimeError as exc:
-      return None
-    ls.Execute(dstLabelImage)
-    centroid = ls.GetCentroid(value)
-    IJKtoRAS = vtk.vtkMatrix4x4()
-    label.GetIJKToRASMatrix(IJKtoRAS)
-    order = label.ComputeScanOrderFromIJKToRAS(IJKtoRAS)
-    if order == 'IS':
-      centroid = [-centroid[0], -centroid[1], centroid[2]]
-    elif order == 'AP':
-      centroid = [-centroid[0], -centroid[2], -centroid[1]]
-    elif order == 'LR':
-      centroid = [centroid[0], -centroid[2], -centroid[1]]
+  @multimethod(slicer.vtkMRMLLabelMapVolumeNode, [int])
+  def getCentroidForLabel(labelNode, value):
+    labelAddress = sitkUtils.GetSlicerITKReadWriteAddress(labelNode.GetName())
+    labelImage = sitk.ReadImage(labelAddress)
+
+    ls = sitk.LabelStatisticsImageFilter()
+    ls.Execute(labelImage, labelImage)
+    bb = ls.GetBoundingBox(value)
+
+    centroid = None # sagittal, coronal, axial
+    if len(bb) > 0:
+      centerIJK = [((bb[0] + bb[1]) / 2), ((bb[2] + bb[3]) / 2), ((bb[4] + bb[5]) / 2)]
+      logging.debug('BB is: ' + str(bb))
+      logging.debug('i_center = '+str(centerIJK[0]))
+      logging.debug('j_center = '+str(centerIJK[1]))
+      logging.debug('k_center = '+str(centerIJK[2]))
+
+      IJKtoRAS = vtk.vtkMatrix4x4()
+      labelNode.GetIJKToRASMatrix(IJKtoRAS)
+      IJKtoRASDir = vtk.vtkMatrix4x4()
+      labelNode.GetIJKToRASDirectionMatrix(IJKtoRASDir)
+      RAScoord = IJKtoRAS.MultiplyPoint((centerIJK[0], centerIJK[1], centerIJK[2], 1))
+
+      order = labelNode.ComputeScanOrderFromIJKToRAS(IJKtoRAS)
+      if order == 'IS':
+        RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[0], RAScoord[1], RAScoord[2], 1))
+        centroid = [-RASDir[0], -RASDir[1], RASDir[2]]
+      elif order == 'AP':
+        RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[0], RAScoord[1], RAScoord[2], 1))
+        centroid = [-RASDir[0], -RASDir[2], -RASDir[1]]
+      elif order == 'LR':
+        RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[2], RAScoord[1], RAScoord[0], 1))
+        centroid = [RASDir[0], -RASDir[2], -RASDir[1]]
     return centroid
 
   @staticmethod
