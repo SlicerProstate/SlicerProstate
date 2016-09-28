@@ -399,32 +399,33 @@ class ModuleLogicMixin(GeneralModuleMixin):
         return ""
 
   @staticmethod
-  @multimethod(str, str)
+  @multimethod([str, unicode], [str, unicode])
   def getDICOMValue(currentFile, tag):
     return ModuleLogicMixin.getDICOMValue(currentFile, tag, "")
 
   @staticmethod
-  @multimethod(str, str, str)
+  @multimethod([str, unicode], [str, unicode], [str, unicode])
   def getDICOMValue(currentFile, tag, default):
     try:
       return slicer.dicomDatabase.fileValue(currentFile, tag)
     except RuntimeError:
       logging.info("There are problems with accessing DICOM value %s from file %s" % (tag, currentFile))
-      return None if default == "" else default
+    return default
 
   @staticmethod
-  @multimethod(slicer.vtkMRMLScalarVolumeNode, str)
+  @multimethod(slicer.vtkMRMLScalarVolumeNode, [str, unicode])
   def getDICOMValue(volumeNode, tag):
     return ModuleLogicMixin.getDICOMValue(volumeNode, tag, "")
 
   @staticmethod
-  @multimethod(slicer.vtkMRMLScalarVolumeNode, str, str)
+  @multimethod(slicer.vtkMRMLScalarVolumeNode, [str, unicode], [str, unicode])
   def getDICOMValue(volumeNode, tag, default):
     try:
       currentFile = volumeNode.GetStorageNode().GetFileName()
       return ModuleLogicMixin.getDICOMValue(currentFile, tag, default)
     except (RuntimeError, AttributeError):
-      return None if default == "" else default
+      logging.info("There are problems with accessing DICOM value %s from volume node %s" % (tag, volumeNode.GetID()))
+    return default
 
   @staticmethod
   def getFileList(directory):
