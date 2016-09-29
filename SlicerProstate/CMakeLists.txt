@@ -19,6 +19,7 @@ set(MODULE_PYTHON_RESOURCES
   Resources/Icons/icon-star-filled.png
   Resources/Icons/icon-star-unfilled.png
   Resources/Icons/LayoutFourUpView.png
+  Resources/Icons/LayoutFourUpTableView.png
   Resources/Icons/LayoutOneUpRedSliceView.png
   Resources/Icons/LayoutSideBySideView.png
   Resources/Icons/SlicesCrosshair.png

@@ -2,6 +2,7 @@ import qt, vtk, slicer
 import inspect, os, sys
 from events import SlicerProstateEvents
 from mixins import ParameterNodeObservationMixin
+from decorators import logmethod
 
 
 class BasicIconButton(qt.QPushButton):
@@ -82,6 +83,7 @@ class LayoutButton(BasicIconButton):
     self.checkable = True
     if not self.LAYOUT:
       raise NotImplementedError("Member variable LAYOUT needs to be defined by all deriving classes")
+    self.onLayoutChanged(self.layoutManager.layout)
 
   def _connectSignals(self):
     super(LayoutButton, self)._connectSignals()
@@ -97,8 +99,10 @@ class LayoutButton(BasicIconButton):
     self.checked = self.LAYOUT == layout
 
   def onToggled(self, checked):
-    if checked and self.LAYOUT is not None:
+    if checked and self.layoutManager.layout != self.LAYOUT:
       self.layoutManager.setLayout(self.LAYOUT)
+    if not checked and self.LAYOUT == self.layoutManager.layout:
+      self.onLayoutChanged(self.LAYOUT)
 
 
 class RedSliceLayoutButton(LayoutButton):
@@ -118,7 +122,17 @@ class FourUpLayoutButton(LayoutButton):
 
   def __init__(self, title="", parent=None, **kwargs):
     super(FourUpLayoutButton, self).__init__(title, parent, **kwargs)
-    self.toolTip = "FourUp Layout"
+    self.toolTip = "Four-Up Layout"
+
+
+class FourUpTableViewLayoutButton(LayoutButton):
+
+  FILE_NAME = 'LayoutFourUpTableView.png'
+  LAYOUT = slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpTableView
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(FourUpTableViewLayoutButton, self).__init__(title, parent, **kwargs)
+    self.toolTip = "Four-Up Table Layout"
 
 
 class SideBySideLayoutButton(LayoutButton):
