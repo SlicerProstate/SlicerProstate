@@ -106,6 +106,26 @@ class ModuleWidgetMixin(GeneralModuleMixin):
       pass
     return path
 
+  def createSliceWidgetClassMembers(self, name):
+    widget = self.layoutManager.sliceWidget(name)
+    setattr(self, name.lower()+"Widget", widget)
+    setattr(self, name.lower()+"CompositeNode", widget.mrmlSliceCompositeNode())
+    setattr(self, name.lower()+"SliceView", widget.sliceView())
+    setattr(self, name.lower()+"SliceViewInteractor", widget.sliceView().interactorStyle().GetInteractor())
+    logic = widget.sliceLogic()
+    setattr(self, name.lower()+"SliceLogic", logic)
+    setattr(self, name.lower()+"SliceNode", logic.GetSliceNode())
+
+  def getAllVisibleWidgets(self):
+    visibleWidgets = []
+    sliceLogics = self.layoutManager.mrmlSliceLogics()
+    for n in range(sliceLogics.GetNumberOfItems()):
+      sliceLogic = sliceLogics.GetItemAsObject(n)
+      widget = self.layoutManager.sliceWidget(sliceLogic.GetName())
+      if widget.sliceView().visible:
+        visibleWidgets.append(widget)
+    return visibleWidgets
+
   def getOrCreateCustomProgressBar(self):
     for child in slicer.util.mainWindow().statusBar().children():
       if isinstance(child, CustomStatusProgressbar):
@@ -313,6 +333,12 @@ class ModuleLogicMixin(GeneralModuleMixin):
     timer.timeout.connect(slot)
     timer.setSingleShot(singleShot)
     return timer
+
+  @staticmethod
+  def getTargetPosition(targetNode, index):
+    position = [0.0, 0.0, 0.0]
+    targetNode.GetNthFiducialPosition(index, position)
+    return position
 
   @staticmethod
   def get3DDistance(p1, p2):
