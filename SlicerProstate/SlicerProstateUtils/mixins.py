@@ -17,49 +17,49 @@ class ParameterNodeObservationMixin(object):
 
   @logmethod(logging.DEBUG)
   def __del__(self):
-    self.removeObservers()
+    self.removeEventObservers()
 
   @property
   def parameterNode(self):
     try:
       return self._parameterNode
     except AttributeError:
-      self._parameterNode = self.getParameterNode() if hasattr(self, "getParameterNode") else self._getParameterNode()
+      self._parameterNode = self.getParameterNode() if hasattr(self, "getParameterNode") else self._createParameterNode()
     return self._parameterNode
 
   @property
-  def parameterNodeObservations(self):
+  def parameterNodeObservers(self):
     try:
-      return self._parameterNodeObservations
+      return self._parameterNodeObservers
     except AttributeError:
-      self._parameterNodeObservations = []
-    return self._parameterNodeObservations
+      self._parameterNodeObservers = []
+    return self._parameterNodeObservers
 
-  def _getParameterNode(self):
+  def _createParameterNode(self):
     parameterNode = slicer.vtkMRMLScriptedModuleNode()
     slicer.mrmlScene.AddNode(parameterNode)
     return parameterNode
 
-  def removeObservers(self, method=None):
-    for e, m, g, t in list(self.parameterNodeObservations):
+  def removeEventObservers(self, method=None):
+    for e, m, g, t in list(self.parameterNodeObservers):
       if method == m or method is None:
         self.parameterNode.RemoveObserver(t)
-        self.parameterNodeObservations.remove([e, m, g, t])
+        self.parameterNodeObservers.remove([e, m, g, t])
 
-  def addObserver(self, event, method, group='none'):
-    if self.hasObserver(event, method):
-      self.removeObserver(event, method)
+  def addEventObserver(self, event, method, group='none'):
+    if self.hasEventObserver(event, method):
+      self.removeEventObserver(event, method)
     tag = self.parameterNode.AddObserver(event, method)
-    self.parameterNodeObservations.append([event, method, group, tag])
+    self.parameterNodeObservers.append([event, method, group, tag])
 
-  def removeObserver(self, event, method):
-    for e, m, g, t in self.parameterNodeObservations:
+  def removeEventObserver(self, event, method):
+    for e, m, g, t in self.parameterNodeObservers:
       if e == event and m == method:
         self.parameterNode.RemoveObserver(t)
-        self.parameterNodeObservations.remove([e, m, g, t])
+        self.parameterNodeObservers.remove([e, m, g, t])
 
-  def hasObserver(self, event, method):
-    for e, m, g, t in self.parameterNodeObservations:
+  def hasEventObserver(self, event, method):
+    for e, m, g, t in self.parameterNodeObservers:
       if e == event and m == method:
         return True
     return False
@@ -70,9 +70,9 @@ class ParameterNodeObservationMixin(object):
     else:
       self.parameterNode.InvokeEvent(event)
 
-  def getObservers(self):
+  def getEventObservers(self):
     observerMethodDict = {}
-    for e, m, g, t in self.parameterNodeObservations:
+    for e, m, g, t in self.parameterNodeObservers:
       observerMethodDict[e] = m
     return observerMethodDict
 

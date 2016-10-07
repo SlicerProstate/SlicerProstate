@@ -24,13 +24,13 @@ class SampleDataDownloader(FancyURLopener, ParameterNodeObservationMixin):
     self.wasCanceled = False
     if self.isDownloading:
       self.cancelDownload()
-    self.removeObservers()
+    self.removeEventObservers()
     if self.loggingEnabled:
       self._addOwnObservers()
 
   def _addOwnObservers(self):
     for event in self.EVENTS.values():
-      self.addObserver(event, self.logMessage)
+      self.addEventObserver(event, self.logMessage)
 
   def __del__(self):
     super(SampleDataDownloader, self).__del__()
@@ -525,13 +525,13 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservation
     self.cancelButtonText = cancelText
     self.setup()
     self.dicomReceiver = SmartDICOMReceiver(incomingDataDirectory=incomingDataDirectory)
-    self.dicomReceiver.addObserver(SlicerProstateEvents.StatusChangedEvent, self.onStatusChanged)
-    self.dicomReceiver.addObserver(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, self.onReceiveFinished)
+    self.dicomReceiver.addEventObserver(SlicerProstateEvents.StatusChangedEvent, self.onStatusChanged)
+    self.dicomReceiver.addEventObserver(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, self.onReceiveFinished)
 
   def __del__(self):
     super(IncomingDataWindow, self).__del__()
     if self.dicomReceiver:
-      self.dicomReceiver.removeObservers()
+      self.dicomReceiver.removeEventObservers()
 
   @vtk.calldata_type(vtk.VTK_STRING)
   def onStatusChanged(self, caller, event, callData):
