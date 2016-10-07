@@ -904,7 +904,7 @@ class DICOMBasedInformationWatchBox(FileBasedInformationWatchBox):
     return ""
 
 
-class TargetCreationWidget(ModuleWidgetMixin, ParameterNodeObservationMixin):
+class TargetCreationWidget(ModuleWidgetMixin):
 
   HEADERS = ["Name","Delete"]
   MODIFIED_EVENT = "ModifiedEvent"
