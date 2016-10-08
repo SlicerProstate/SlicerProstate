@@ -18,10 +18,10 @@
           self.myClassInstance.processingFinished.connect(self.onProcessingFinished)
 
         def onProcessingFinished(self):
-          print "Caught in Class: Processing is done!"
+          print "Slot in class: Signal successfully caught. Processing is done!"
 
       def slot():
-        print "Processing is done!"
+        print "Signal successfully caught. Processing is done!"
 
 
       myClassInstance = MyClass()
@@ -47,7 +47,7 @@ class Signal(object):
     self.slots = []
 
   def __del__(self):
-    self.slots = {}
+    self.slots = []
 
   def __call__(self, *args, **kwargs):
     for slot in self.slots:
