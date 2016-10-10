@@ -29,47 +29,6 @@ class BasicIconButton(qt.QPushButton):
     obj.destroyed.disconnect(self.onAboutToBeDestroyed)
 
 
-class CrosshairButton(BasicIconButton, ParameterNodeObservationMixin):
-
-  FILE_NAME = 'SlicesCrosshair.png'
-  CursorPositionModifiedEvent = SlicerProstateEvents.CursorPositionModifiedEvent
-
-  def __init__(self, title="", parent=None, **kwargs):
-    super(CrosshairButton, self).__init__(title, parent, **kwargs)
-    self.checkable = True
-    self.toolTip = "Show crosshair"
-    self.crosshairNodeObserverTag = None
-    self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
-    self.connectCrosshairNode()
-
-  def _connectSignals(self):
-    super(CrosshairButton, self)._connectSignals()
-    self.toggled.connect(self.onToggled)
-
-  def onAboutToBeDestroyed(self, obj):
-    super(CrosshairButton, self).onAboutToBeDestroyed(obj)
-    self.disconnectCrosshairNode()
-
-  def connectCrosshairNode(self):
-    if not self.crosshairNodeObserverTag:
-      self.crosshairNodeObserverTag = self.crosshairNode.AddObserver(self.CursorPositionModifiedEvent,
-                                                                     self.onCursorPositionChanged)
-
-  def disconnectCrosshairNode(self):
-    if self.crosshairNode and self.crosshairNodeObserverTag:
-      self.crosshairNode.RemoveObserver(self.crosshairNodeObserverTag)
-    self.crosshairNodeObserverTag = None
-
-  def onCursorPositionChanged(self, observee=None, event=None):
-    self.invokeEvent(self.CursorPositionModifiedEvent, self.crosshairNode)
-
-  def onToggled(self, checked):
-    if checked:
-      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic)
-    else:
-      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.NoCrosshair)
-
-
 class LayoutButton(BasicIconButton):
 
   LAYOUT=None
@@ -145,7 +104,55 @@ class SideBySideLayoutButton(LayoutButton):
     self.toolTip = "Side by Side Layout"
 
 
-class WindowLevelEffectsButton(BasicIconButton):
+class CheckableIconButton(BasicIconButton):
+
+  def __init__(self, title="", parent=None, **kwargs):
+    BasicIconButton.__init__(self, title, parent, **kwargs)
+    self.checkable = True
+
+  def _connectSignals(self):
+    super(CheckableIconButton, self)._connectSignals()
+    self.toggled.connect(self.onToggled)
+
+  def onToggled(self, checked):
+    raise NotImplementedError()
+
+
+class CrosshairButton(CheckableIconButton, ParameterNodeObservationMixin):
+
+  FILE_NAME = 'SlicesCrosshair.png'
+  CursorPositionModifiedEvent = SlicerProstateEvents.CursorPositionModifiedEvent
+
+  def __init__(self, title="", parent=None, **kwargs):
+    super(CrosshairButton, self).__init__(title, parent, **kwargs)
+    self.toolTip = "Show crosshair"
+    self.crosshairNodeObserverTag = None
+    self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
+    self.connectCrosshairNode()
+
+  def onAboutToBeDestroyed(self, obj):
+    super(CrosshairButton, self).onAboutToBeDestroyed(obj)
+    self.disconnectCrosshairNode()
+
+  def connectCrosshairNode(self):
+    if not self.crosshairNodeObserverTag:
+      self.crosshairNodeObserverTag = self.crosshairNode.AddObserver(self.CursorPositionModifiedEvent,
+                                                                     self.onCursorPositionChanged)
+
+  def disconnectCrosshairNode(self):
+    if self.crosshairNode and self.crosshairNodeObserverTag:
+      self.crosshairNode.RemoveObserver(self.crosshairNodeObserverTag)
+    self.crosshairNodeObserverTag = None
+
+  def onCursorPositionChanged(self, observee=None, event=None):
+    self.invokeEvent(self.CursorPositionModifiedEvent, self.crosshairNode)
+
+  def onToggled(self, checked):
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic if checked
+                                          else slicer.vtkMRMLCrosshairNode.NoCrosshair)
+
+
+class WindowLevelEffectsButton(CheckableIconButton):
 
   FILE_NAME = 'icon-WindowLevelEffect.png'
 
@@ -160,17 +167,12 @@ class WindowLevelEffectsButton(BasicIconButton):
 
   def __init__(self, title="", sliceWidgets=None, parent=None, **kwargs):
     super(WindowLevelEffectsButton, self).__init__(title, parent, **kwargs)
-    self.checkable = True
     self.toolTip = "Change W/L with respect to FG and BG opacity"
     self.wlEffects = {}
     self.sliceWidgets = sliceWidgets
 
   def refreshForAllAvailableSliceWidgets(self):
     self.sliceWidgets = None
-
-  def _connectSignals(self):
-    super(WindowLevelEffectsButton, self)._connectSignals()
-    self.toggled.connect(self.onToggled)
 
   def setup(self):
     lm = slicer.app.layoutManager()
@@ -197,11 +199,9 @@ class WindowLevelEffectsButton(BasicIconButton):
       self.wlEffects[sliceWidget].disable()
       del self.wlEffects[sliceWidget]
 
-  def onToggled(self, toggled):
-    if toggled:
-      self._enableWindowLevelEffects()
-    else:
-      self._disableWindowLevelEffects()
+  def onToggled(self, checked):
+    self._enableWindowLevelEffects() if checked else self._disableWindowLevelEffects()
+
 
   def _enableWindowLevelEffects(self):
     for wlEffect in self.wlEffects.values():

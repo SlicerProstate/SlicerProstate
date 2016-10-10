@@ -100,12 +100,22 @@ def callCount(level=logging.DEBUG):
   return decorator
 
 
-class MultiMethodRegistrations(object):
+class MultiMethodRegistrations:
 
   registry = {}
 
 
-class MultiMethod(object):
+def returnImmediatelyIfNodeIsNone(func):
+
+  @wraps(func)
+  def wrapper(*args, **kwargs):
+    if not args[1]:
+      return
+    func(*args, **kwargs)
+  return wrapper
+
+
+class MultiMethod:
   # source: http://www.artima.com/weblogs/viewpost.jsp?thread=101605
   def __init__(self, name):
     self.__name__ = name
@@ -125,6 +135,7 @@ class MultiMethod(object):
 
 
 def multimethod(*types):
+  # TODO: swtich to decorator that uses functools wraps
   """ This decorator can be used to define different versions of a
       method/function for different datatypes but keeping the same name
 
@@ -153,3 +164,60 @@ def multimethod(*types):
       mm.register(combination, func)
     return mm
   return register
+
+
+def timer(func):
+  def new_function(*args, **kwargs):
+    import time
+    startTime = time.time()
+    x = func(*args, **kwargs)
+    duration = time.time() - startTime
+    print "{} ran in: {0} seconds".format(func.__name__, duration)
+    return x
+
+  return new_function
+
+
+class processEventsEvery:
+
+  def __init__(self, interval=100):
+    import qt
+    self.timer = qt.QTimer()
+    self.timer.setInterval(interval)
+    self.timer.connect('timeout()', self.onTriggered)
+
+  def __del__(self):
+    self.timer.disconnect('timeout()')
+
+  def __call__(self, func):
+    def wrapped_f(*args, **kwargs):
+      self.timer.start()
+      func(*args, **kwargs)
+      self.timer.stop()
+    return wrapped_f
+
+  @callCount()
+  def onTriggered(self):
+    slicer.app.processEvents()
+
+
+def priorCall(functionToCallFunction):
+  def decorator(func):
+    @wraps(func)
+    def f(*args, **kwargs):
+      logging.debug("calling {} before {}".format(functionToCallFunction.__name__, func.__name__))
+      functionToCallFunction(args[0])
+      func(*args, **kwargs)
+    return f
+  return decorator
+
+
+def postCall(functionToCallFunction):
+  def decorator(func):
+    @wraps(func)
+    def f(*args, **kwargs):
+      logging.debug("calling {} after {}".format(functionToCallFunction.__name__, func.__name__))
+      func(*args, **kwargs)
+      functionToCallFunction(args[0])
+    return f
+  return decorator
