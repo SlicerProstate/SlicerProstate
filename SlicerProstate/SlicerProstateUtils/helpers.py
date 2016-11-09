@@ -922,10 +922,10 @@ class TargetCreationWidget(ModuleWidgetMixin):
     if node:
       self.placeWidget.setCurrentNode(node)
       self.addTargetListObservers()
+      self.markupsLogic.SetActiveListID(node)
     else:
       selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
       selectionNode.SetReferenceActivePlaceNodeID(None)
-    self.markupsLogic.SetActiveListID(node)
     self.updateTable()
 
   def __init__(self, parent):
