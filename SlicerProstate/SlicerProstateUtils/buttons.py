@@ -122,6 +122,7 @@ class CrosshairButton(CheckableIconButton, ParameterNodeObservationMixin):
 
   FILE_NAME = 'SlicesCrosshair.png'
   CursorPositionModifiedEvent = SlicerProstateEvents.CursorPositionModifiedEvent
+  DEFAULT_CROSSHAIR_MODE = slicer.vtkMRMLCrosshairNode.ShowSmallBasic
 
   def __init__(self, title="", parent=None, **kwargs):
     super(CrosshairButton, self).__init__(title, parent, **kwargs)
@@ -129,6 +130,14 @@ class CrosshairButton(CheckableIconButton, ParameterNodeObservationMixin):
     self.crosshairNodeObserverTag = None
     self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
     self.connectCrosshairNode()
+    self.crosshairMode = self.DEFAULT_CROSSHAIR_MODE
+    self.sliceIntersectionEnabled = False
+
+  def setCrosshairMode(self, mode):
+    self.crosshairMode = mode
+
+  def setSliceIntersectionEnabled(self, enabled):
+    self.sliceIntersectionEnabled = enabled
 
   def onAboutToBeDestroyed(self, obj):
     super(CrosshairButton, self).onAboutToBeDestroyed(obj)
@@ -148,8 +157,21 @@ class CrosshairButton(CheckableIconButton, ParameterNodeObservationMixin):
     self.invokeEvent(self.CursorPositionModifiedEvent, self.crosshairNode)
 
   def onToggled(self, checked):
-      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic if checked
-                                          else slicer.vtkMRMLCrosshairNode.NoCrosshair)
+    if checked:
+      self.crosshairNode.SetCrosshairMode(self.crosshairMode)
+      self.showSliceIntersection(self.sliceIntersectionEnabled)
+    else:
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.NoCrosshair)
+      self.showSliceIntersection(False)
+
+  def showSliceIntersection(self, show):
+    viewNodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSliceCompositeNode')
+    viewNodes.UnRegister(slicer.mrmlScene)
+    viewNodes.InitTraversal()
+    viewNode = viewNodes.GetNextItemAsObject()
+    while viewNode:
+      viewNode.SetSliceIntersectionVisibility(show)
+      viewNode = viewNodes.GetNextItemAsObject()
 
 
 class WindowLevelEffectsButton(CheckableIconButton):
