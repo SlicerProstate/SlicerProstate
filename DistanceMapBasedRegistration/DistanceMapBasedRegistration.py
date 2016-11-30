@@ -454,7 +454,7 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     fixedModelID = parameterNode.GetAttribute('FixedLabelSurfaceID')
     if fixedModelID:
       fixedModel = slicer.util.getNode(fixedModelID)
-      logging.info('Reusing existing model: '+fixedModelID+' '+fixedModelID.GetName())
+      logging.info('Reusing existing model: '+fixedModelID+' '+fixedModel.GetName())
     else:
       fixedModel = slicer.vtkMRMLModelNode()
       slicer.mrmlScene.AddNode(fixedModel)
