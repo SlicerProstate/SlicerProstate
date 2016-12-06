@@ -509,7 +509,7 @@ class IncomingDataMessageBox(ExtendedQMessageBox):
     self.textLabel = qt.QLabel("New data has been received. What do you want do?")
     self.layout().addWidget(self.textLabel, 0, 1)
     self.setIcon(qt.QMessageBox.Question)
-    trackButton =  self.addButton(qt.QPushButton('Track targets'), qt.QMessageBox.AcceptRole)
+    trackButton = self.addButton(qt.QPushButton('Track targets'), qt.QMessageBox.AcceptRole)
     self.addButton(qt.QPushButton('Postpone'), qt.QMessageBox.NoRole)
     self.setDefaultButton(trackButton)
 
@@ -1022,3 +1022,49 @@ class TargetCreationWidget(ModuleWidgetMixin):
   def onCellChanged(self, row, col):
     if col == 0:
       self.currentNode.SetNthFiducialLabel(row, self.table.item(row, col).text())
+
+
+class SettingsMessageBox(qt.QMessageBox, ModuleWidgetMixin):
+
+  def getSettingNames(self):
+    return [s.replace(self.moduleName+"/", "") for s in list(qt.QSettings().allKeys()) if str.startswith(str(s),
+                                                                                                         self.moduleName)]
+
+  def __init__(self, moduleName, parent=None, **kwargs):
+    self.moduleName = moduleName
+    self.keyLineEditPairs = []
+    qt.QMessageBox.__init__(self, parent, **kwargs)
+    self.setup()
+    self.adjustSize()
+
+  def setup(self):
+    self.setLayout(qt.QGridLayout())
+    settingNames = self.getSettingNames()
+    for index, setting in enumerate(settingNames):
+      label = self.createLabel(setting)
+      lineEdit = self.createLineEdit(self.getSetting(setting))
+      lineEdit.minimumWidth = self.getMinimumTextWidth(lineEdit.text) + 10
+      self.layout().addWidget(label, index, 0)
+      self.layout().addWidget(lineEdit, index, 1, 1, qt.QSizePolicy.ExpandFlag)
+      self.keyLineEditPairs.append((label.text, lineEdit))
+
+    self.okButton = self.createButton("OK")
+    self.cancelButton = self.createButton("Cancel")
+
+    self.addButton(self.okButton, qt.QMessageBox.AcceptRole)
+    self.addButton(self.cancelButton, qt.QMessageBox.NoRole)
+
+    self.layout().addWidget(self.okButton, len(settingNames), 0)
+    self.layout().addWidget(self.cancelButton, len(settingNames), 1)
+    self.okButton.clicked.connect(self.onOkButtonClicked)
+
+  def getMinimumTextWidth(self, text):
+    font = qt.QFont("", 0)
+    metrics = qt.QFontMetrics(font)
+    return metrics.width(text)
+
+  def onOkButtonClicked(self):
+    for key, lineEdit in self.keyLineEditPairs:
+      if self.getSetting(key) != lineEdit.text:
+        self.setSetting(key, lineEdit.text)
+    self.close()
