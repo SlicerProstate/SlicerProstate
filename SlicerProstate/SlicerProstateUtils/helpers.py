@@ -1,6 +1,6 @@
 import DICOMLib
 import os, sys, ast
-import slicer, vtk, qt
+import slicer, ctk, vtk, qt
 import xml.dom.minidom, datetime
 import logging
 import urllib
@@ -1032,7 +1032,7 @@ class SettingsMessageBox(qt.QMessageBox, ModuleWidgetMixin):
 
   def __init__(self, moduleName, parent=None, **kwargs):
     self.moduleName = moduleName
-    self.keyLineEditPairs = []
+    self.keyElementPairs = []
     qt.QMessageBox.__init__(self, parent, **kwargs)
     self.setup()
     self.adjustSize()
@@ -1042,11 +1042,27 @@ class SettingsMessageBox(qt.QMessageBox, ModuleWidgetMixin):
     settingNames = self.getSettingNames()
     for index, setting in enumerate(settingNames):
       label = self.createLabel(setting)
-      lineEdit = self.createLineEdit(self.getSetting(setting))
-      lineEdit.minimumWidth = self.getMinimumTextWidth(lineEdit.text) + 10
+      value = self.getSetting(setting)
+      if value.lower() in ["true", "false"]:
+        element = qt.QCheckBox()
+        element.checked = value.lower() == "true"
+      elif value.isdigit():
+        element = qt.QSpinBox()
+        element.value = int(value)
+      elif os.path.exists(value):
+        element = ctk.ctkPathLineEdit()
+        if os.path.isdir(value):
+          element.filters = ctk.ctkPathLineEdit.Dirs
+        else:
+          element.filters = ctk.ctkPathLineEdit.Files
+        element.currentPath = value
+      else:
+        element = self.createLineEdit(value)
+        element.minimumWidth = self.getMinimumTextWidth(element.text) + 10
+
       self.layout().addWidget(label, index, 0)
-      self.layout().addWidget(lineEdit, index, 1, 1, qt.QSizePolicy.ExpandFlag)
-      self.keyLineEditPairs.append((label.text, lineEdit))
+      self.layout().addWidget(element, index, 1, 1, qt.QSizePolicy.ExpandFlag)
+      self.keyElementPairs.append((label.text, element))
 
     self.okButton = self.createButton("OK")
     self.cancelButton = self.createButton("Cancel")
@@ -1054,8 +1070,7 @@ class SettingsMessageBox(qt.QMessageBox, ModuleWidgetMixin):
     self.addButton(self.okButton, qt.QMessageBox.AcceptRole)
     self.addButton(self.cancelButton, qt.QMessageBox.NoRole)
 
-    self.layout().addWidget(self.okButton, len(settingNames), 0)
-    self.layout().addWidget(self.cancelButton, len(settingNames), 1)
+    self.layout().addWidget(self.createHLayout([self.okButton, self.cancelButton]), len(settingNames), 1)
     self.okButton.clicked.connect(self.onOkButtonClicked)
 
   def getMinimumTextWidth(self, text):
@@ -1064,7 +1079,15 @@ class SettingsMessageBox(qt.QMessageBox, ModuleWidgetMixin):
     return metrics.width(text)
 
   def onOkButtonClicked(self):
-    for key, lineEdit in self.keyLineEditPairs:
-      if self.getSetting(key) != lineEdit.text:
-        self.setSetting(key, lineEdit.text)
+    for key, element in self.keyElementPairs:
+      if isinstance(element, qt.QCheckBox):
+        value = "true" if element.checked else "false"
+      elif isinstance(element, qt.QSpinBox):
+        value = str(element.value)
+      elif isinstance(element, ctk.ctkPathLineEdit):
+        value = element.currentPath
+      else:
+        value = element.text
+      if self.getSetting(key) != value:
+        self.setSetting(key, value)
     self.close()
