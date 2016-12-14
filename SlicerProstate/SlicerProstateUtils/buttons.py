@@ -2,6 +2,7 @@ import qt, vtk, slicer
 import inspect, os, sys
 from events import SlicerProstateEvents
 from mixins import ParameterNodeObservationMixin
+from helpers import SettingsMessageBox
 from decorators import logmethod
 
 
@@ -27,6 +28,23 @@ class BasicIconButton(qt.QPushButton):
 
   def onAboutToBeDestroyed(self, obj):
     obj.destroyed.disconnect(self.onAboutToBeDestroyed)
+
+
+class ModuleSettingsButton(BasicIconButton):
+
+  FILE_NAME = 'icon-settings.png'
+
+  def __init__(self, moduleName, title="", parent=None, **kwargs):
+    self.moduleName = moduleName
+    super(ModuleSettingsButton, self).__init__(title, parent, **kwargs)
+
+  def _connectSignals(self):
+    super(ModuleSettingsButton, self)._connectSignals()
+    self.clicked.connect(self.onClicked)
+
+  def onClicked(self):
+    settings = SettingsMessageBox(self.moduleName, slicer.util.mainWindow())
+    settings.show()
 
 
 class LayoutButton(BasicIconButton):
