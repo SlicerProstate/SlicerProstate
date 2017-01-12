@@ -370,8 +370,9 @@ class ModuleLogicMixin(GeneralModuleMixin):
     label.SetAndObserveImageData(dilateErode.GetOutput())
 
   @staticmethod
-  @multimethod(slicer.vtkMRMLLabelMapVolumeNode, [int])
   def getCentroidForLabel(labelNode, value):
+    if not labelNode:
+      return None
     labelAddress = sitkUtils.GetSlicerITKReadWriteAddress(labelNode.GetName())
     labelImage = sitk.ReadImage(labelAddress)
 
