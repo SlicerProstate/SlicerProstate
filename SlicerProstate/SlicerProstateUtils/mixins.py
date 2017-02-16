@@ -297,6 +297,27 @@ class ModuleWidgetMixin(GeneralModuleMixin):
         else:
           c.hide()
 
+  def createProgressDialog(self, parent=None, value=0, maximum=100, labelText="", windowTitle="Processing...",
+                           windowFlags=None, **kwargs):
+    """Display a modal QProgressDialog. Go to QProgressDialog documentation
+    http://pyqt.sourceforge.net/Docs/PyQt4/qprogressdialog.html for more keyword arguments, that could be used.
+    E.g. progressbar = createProgressIndicator(autoClose=False) if you don't want the progress dialog to automatically
+    close.
+    Updating progress value with progressbar.value = 50
+    Updating label text with progressbar.labelText = "processing XYZ"
+    """
+    progressIndicator = qt.QProgressDialog(parent if parent else slicer.util.mainWindow(),
+                                           windowFlags if windowFlags else qt.Qt.WindowStaysOnTopHint)
+    progressIndicator.minimumDuration = 0
+    progressIndicator.maximum = maximum
+    progressIndicator.value = value
+    progressIndicator.windowTitle = windowTitle
+    progressIndicator.labelText = labelText
+    for key, value in kwargs.iteritems():
+      if hasattr(progressIndicator, key):
+        setattr(progressIndicator, key, value)
+    return progressIndicator
+
 
 class ModuleLogicMixin(GeneralModuleMixin):
 
