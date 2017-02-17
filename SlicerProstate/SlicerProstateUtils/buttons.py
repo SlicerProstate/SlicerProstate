@@ -147,7 +147,6 @@ class CrosshairButton(CheckableIconButton, ParameterNodeObservationMixin):
     self.toolTip = "Show crosshair"
     self.crosshairNodeObserverTag = None
     self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
-    self.connectCrosshairNode()
     self.crosshairMode = self.DEFAULT_CROSSHAIR_MODE
     self.sliceIntersectionEnabled = False
 
@@ -176,9 +175,11 @@ class CrosshairButton(CheckableIconButton, ParameterNodeObservationMixin):
 
   def onToggled(self, checked):
     if checked:
+      self.connectCrosshairNode()
       self.crosshairNode.SetCrosshairMode(self.crosshairMode)
       self.showSliceIntersection(self.sliceIntersectionEnabled)
     else:
+      self.disconnectCrosshairNode()
       self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.NoCrosshair)
       self.showSliceIntersection(False)
 
