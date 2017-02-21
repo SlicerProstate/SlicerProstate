@@ -3,7 +3,6 @@ import inspect, os, sys
 from events import SlicerProstateEvents
 from mixins import ParameterNodeObservationMixin
 from helpers import SettingsMessageBox
-from decorators import logmethod
 
 
 class BasicIconButton(qt.QPushButton):

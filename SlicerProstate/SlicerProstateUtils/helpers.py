@@ -6,18 +6,26 @@ import logging
 import urllib
 from urllib import FancyURLopener
 from constants import DICOMTAGS
-from decorators import logmethod
 from mixins import ModuleLogicMixin, ModuleWidgetMixin, ParameterNodeObservationMixin
 from events import SlicerProstateEvents
+from DICOMLib import DICOMProcess
 
 
 class SampleDataDownloader(FancyURLopener, ParameterNodeObservationMixin):
+
+  EVENTS = {'status_changed':SlicerProstateEvents.StatusChangedEvent,
+            'download_canceled': SlicerProstateEvents.DownloadCanceledEvent, # TODO: Implement cancel
+            'download_finished': SlicerProstateEvents.DownloadFinishedEvent,
+            'download_failed': SlicerProstateEvents.DownloadFailedEvent}
 
   def __init__(self, enableLogging=False):
     super(SampleDataDownloader, self).__init__()
     self.loggingEnabled = enableLogging
     self.isDownloading = False
     self.resetAndInitialize()
+
+  def __del__(self):
+    super(SampleDataDownloader, self).__del__()
 
   def resetAndInitialize(self):
     self._cancelDownload=False
@@ -31,14 +39,6 @@ class SampleDataDownloader(FancyURLopener, ParameterNodeObservationMixin):
   def _addOwnObservers(self):
     for event in self.EVENTS.values():
       self.addEventObserver(event, self.logMessage)
-
-  def __del__(self):
-    super(SampleDataDownloader, self).__del__()
-
-  EVENTS = {'status_changed':SlicerProstateEvents.StatusChangedEvent,
-            'download_canceled': SlicerProstateEvents.DownloadCanceledEvent, # TODO: Implement cancel
-            'download_finished': SlicerProstateEvents.DownloadFinishedEvent,
-            'download_failed': SlicerProstateEvents.DownloadFailedEvent}
 
   @vtk.calldata_type(vtk.VTK_STRING)
   def logMessage(self, caller, event, callData):
@@ -156,33 +156,26 @@ class SampleDataDownloader(FancyURLopener, ParameterNodeObservationMixin):
     return result
 
 
-class SmartDICOMReceiver(ModuleLogicMixin):
+class DirectoryWatcher(ModuleLogicMixin):
 
-  STATUS_PREFIX = "SmartDICOMReceiver: "
-  STATUS_WAITING = STATUS_PREFIX + "Waiting for incoming DICOM data"
-  STATUS_WATCHING_ONLY = STATUS_PREFIX + "Watching incoming data directory only (no storescp running)"
-  STATUS_RECEIVING = STATUS_PREFIX + "Receiving DICOM data"
-  STATUS_COMPLETED = STATUS_PREFIX + "DICOM data receive completed."
-  AVAILABLE_STATES = [STATUS_WAITING,STATUS_RECEIVING,STATUS_COMPLETED]
+  StartedWatchingEvent = SlicerProstateEvents.DICOMReceiverStartedEvent
+  StoppedWatchingEvent = SlicerProstateEvents.DICOMReceiverStoppedEvent
+  IncomingFileCountChangedEvent = SlicerProstateEvents.IncomingFileCountChangedEvent
 
-  SUPPORTED_EVENTS = [SlicerProstateEvents.DICOMReceiverStartedEvent, SlicerProstateEvents.DICOMReceiverStoppedEvent,
-                      SlicerProstateEvents.StatusChangedEvent, SlicerProstateEvents.IncomingDataReceiveFinishedEvent]
+  SUPPORTED_EVENTS = [StartedWatchingEvent, StoppedWatchingEvent, IncomingFileCountChangedEvent]
 
-  def __init__(self, incomingDataDirectory):
-    self.incomingDataDirectory = incomingDataDirectory
-    self.storeSCPProcess = None
+  def __init__(self, directory):
+    self.observedDirectory = directory
     self.setupTimers()
     self.reset()
 
-  @logmethod
   def __del__(self):
     self.stop()
-    super(SmartDICOMReceiver, self).__del__()
+    super(DirectoryWatcher, self).__del__()
 
   def reset(self):
     self.startingFileList = []
     self.currentFileList = []
-    self.dataHasBeenReceived = False
     self.currentStatus = ""
     self._running = False
 
@@ -190,29 +183,153 @@ class SmartDICOMReceiver(ModuleLogicMixin):
     return self._running
 
   def setupTimers(self):
-    self.dataReceivedTimer = self.createTimer(interval=5000, slot=self.checkIfStillSameFileCount, singleShot=True)
     self.watchTimer = self.createTimer(interval=1000, slot=self.startWatching, singleShot=True)
+
+  def start(self):
+    self.stop()
+    self.startingFileList = self.getFileList(self.observedDirectory)
+    self.lastFileCount = len(self.startingFileList)
+    self._running = True
+    self.startWatching()
+    self.invokeEvent(self.StartedWatchingEvent)
+
+  def stop(self):
+    if self._running:
+      self.watchTimer.stop()
+      self.reset()
+      self.invokeEvent(self.StoppedWatchingEvent)
+
+  def startWatching(self):
+    if not self.isRunning:
+      return
+    self.currentFileList = self.getFileList(self.observedDirectory)
+    currentFileListCount = len(self.currentFileList)
+    if self.lastFileCount != currentFileListCount:
+      self.onFileCountChanged(currentFileListCount)
+    else:
+      self.watchTimer.start()
+
+  def onFileCountChanged(self, currentFileListCount):
+    self.lastFileCount = currentFileListCount
+    receivedFileCount = abs(len(self.startingFileList) - currentFileListCount)
+    self.invokeEvent(self.IncomingFileCountChangedEvent, receivedFileCount)
+    self.watchTimer.start()
+
+
+class TimeoutDirectoryWatcher(DirectoryWatcher):
+
+  IncomingDataReceiveFinishedEvent = SlicerProstateEvents.IncomingDataReceiveFinishedEvent
+
+  SUPPORTED_EVENTS = DirectoryWatcher.SUPPORTED_EVENTS + [IncomingDataReceiveFinishedEvent]
+
+  def __init__(self, directory, timeout=5000):
+    self.receiveFinishedTimeout = timeout
+    super(TimeoutDirectoryWatcher, self).__init__(directory)
+
+  def setupTimers(self):
+    super(TimeoutDirectoryWatcher, self).setupTimers()
+    self.dataReceivedTimer = self.createTimer(interval=5000, slot=self.checkIfStillSameFileCount, singleShot=True)
+
+  def stop(self):
+    if self._running:
+      self.dataReceivedTimer.stop()
+    super(TimeoutDirectoryWatcher, self).stop()
+
+  def startWatching(self):
+    if not self.isRunning:
+      return
+    self.currentFileList = self.getFileList(self.observedDirectory)
+    currentFileListCount = len(self.currentFileList)
+    if self.lastFileCount != currentFileListCount:
+      self.onFileCountChanged(currentFileListCount)
+    elif currentFileListCount != len(self.startingFileList):
+      self.lastFileCount = currentFileListCount
+      self.dataReceivedTimer.start()
+    else:
+      self.watchTimer.start()
+
+  def checkIfStillSameFileCount(self):
+    self.currentFileList = self.getFileList(self.observedDirectory)
+    if self.lastFileCount == len(self.currentFileList):
+      newFileList = list(set(self.currentFileList) - set(self.startingFileList))
+      self.startingFileList = self.currentFileList
+      self.lastFileCount = len(self.startingFileList)
+      if len(newFileList):
+        self.invokeEvent(self.IncomingDataReceiveFinishedEvent, newFileList.__str__())
+    self.watchTimer.start()
+
+
+class SmartDICOMReceiver(ModuleLogicMixin):
+
+  NAME = "SmartDICOMReceiver"
+  STATUS_RECEIVING = "{}: Receiving DICOM data".format(NAME)
+
+  StatusChangedEvent = SlicerProstateEvents.StatusChangedEvent
+  DICOMReceiverStartedEvent = SlicerProstateEvents.DICOMReceiverStartedEvent
+  DICOMReceiverStoppedEvent = SlicerProstateEvents.DICOMReceiverStoppedEvent
+  IncomingDataReceiveFinishedEvent = TimeoutDirectoryWatcher.IncomingDataReceiveFinishedEvent
+  IncomingFileCountChangedEvent = TimeoutDirectoryWatcher.IncomingFileCountChangedEvent
+
+  SUPPORTED_EVENTS = [DICOMReceiverStartedEvent, DICOMReceiverStoppedEvent, StatusChangedEvent,
+                      IncomingDataReceiveFinishedEvent, IncomingFileCountChangedEvent]
+
+  def __init__(self, incomingDataDirectory):
+    self.incomingDataDirectory = incomingDataDirectory
+    self.directoryWatcher = TimeoutDirectoryWatcher(incomingDataDirectory)
+    self.connectEvents()
+    self.storeSCPProcess = None
+    self.reset()
+
+  def __del__(self):
+    self.stop()
+    super(SmartDICOMReceiver, self).__del__()
+
+  def reset(self):
+    self.currentStatus = ""
+    self._running = False
+
+  def connectEvents(self):
+    self.directoryWatcher.addEventObserver(self.IncomingDataReceiveFinishedEvent, self.onDataReceivedFinished)
+    self.directoryWatcher.addEventObserver(self.IncomingFileCountChangedEvent, self.onIncomingFileCountChanged)
+
+  @vtk.calldata_type(vtk.VTK_STRING)
+  def onDataReceivedFinished(self, caller, event, callData):
+    self.updateStatus("{}: DICOM data receive completed.".format(self.NAME))
+    self.invokeEvent(self.IncomingDataReceiveFinishedEvent, callData)
+
+  @vtk.calldata_type(vtk.VTK_INT)
+  def onIncomingFileCountChanged(self, caller, event, callData):
+    status = "{}: Received {} files".format(self.NAME, callData)
+    self.updateStatus(status)
+    self.invokeEvent(self.IncomingFileCountChangedEvent, callData)
+
+  def updateStatus(self, text):
+    if text != self.currentStatus:
+      self.currentStatus = text
+      self.invokeEvent(self.StatusChangedEvent, text)
+
+  def isRunning(self):
+    return self._running
 
   def forceStatusChangeEvent(self):
     self.currentStatus = "Force update"
 
   def start(self, runStoreSCP=True):
     self.stop()
-
-    self.startingFileList = self.getFileList(self.incomingDataDirectory)
-    self.lastFileCount = len(self.startingFileList)
+    self.directoryWatcher.start()
     if runStoreSCP:
       self.startStoreSCP()
-    self.invokeEvent(SlicerProstateEvents.DICOMReceiverStartedEvent)
+    self.invokeEvent(self.DICOMReceiverStartedEvent)
     self._running = True
-    self.startWatching()
+    self.updateStatus("{}: Waiting for incoming DICOM data".format(self.NAME) if self.storeSCPProcess else
+                      "{}: Watching incoming data directory only (no storescp running)".format(self.NAME))
 
   def stop(self):
     if self._running:
-      self.stopWatching()
+      self.directoryWatcher.stop()
       self.stopStoreSCP()
       self.reset()
-      self.invokeEvent(SlicerProstateEvents.DICOMReceiverStoppedEvent)
+      self.invokeEvent(self.DICOMReceiverStoppedEvent)
 
   def startStoreSCP(self):
     self.stopStoreSCP()
@@ -223,49 +340,6 @@ class SmartDICOMReceiver(ModuleLogicMixin):
     if self.storeSCPProcess:
       self.storeSCPProcess.stop()
       self.storeSCPProcess = None
-
-  def startWatching(self):
-    if not self._running:
-      return
-    self.currentFileList = self.getFileList(self.incomingDataDirectory)
-    status = None
-    currentFileListCount = len(self.currentFileList)
-    if self.lastFileCount != currentFileListCount:
-      self.dataHasBeenReceived = True
-      self.lastFileCount = currentFileListCount
-      receivedFileCount = abs(len(self.startingFileList)-currentFileListCount)
-      self.invokeEvent(SlicerProstateEvents.IncomingFileCountChangedEvent, receivedFileCount)
-      status = self.STATUS_PREFIX + "Received %d files" % receivedFileCount
-      self.watchTimer.start()
-    elif self.dataHasBeenReceived:
-      self.lastFileCount = currentFileListCount
-      self.dataHasBeenReceived = False
-      self.dataReceivedTimer.start()
-    else:
-      status = self.STATUS_WAITING if self.storeSCPProcess else self.STATUS_WATCHING_ONLY
-      self.watchTimer.start()
-    if status:
-      self.updateStatus(status)
-
-  def stopWatching(self):
-    self.dataReceivedTimer.stop()
-    self.watchTimer.stop()
-
-  def updateStatus(self, text):
-    if text != self.currentStatus:
-      self.currentStatus = text
-      self.invokeEvent(SlicerProstateEvents.StatusChangedEvent, text)
-
-  def checkIfStillSameFileCount(self):
-    self.currentFileList = self.getFileList(self.incomingDataDirectory)
-    if self.lastFileCount == len(self.currentFileList):
-      newFileList = list(set(self.currentFileList) - set(self.startingFileList))
-      self.startingFileList = self.currentFileList
-      self.lastFileCount = len(self.startingFileList)
-      if len(newFileList):
-        self.updateStatus(self.STATUS_COMPLETED)
-        self.invokeEvent(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, newFileList.__str__())
-    self.watchTimer.start()
 
 
 class SliceAnnotation(object):
@@ -513,8 +587,7 @@ class IncomingDataMessageBox(ExtendedQMessageBox):
     self.addButton(qt.QPushButton('Postpone'), qt.QMessageBox.NoRole)
     self.setDefaultButton(trackButton)
 
-
-class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin):
+class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin):
 
   def __init__(self, incomingDataDirectory, title="Receiving image data",
                skipText="Skip", cancelText="Cancel", *args):
@@ -525,8 +598,10 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservation
     self.cancelButtonText = cancelText
     self.setup()
     self.dicomReceiver = SmartDICOMReceiver(incomingDataDirectory=incomingDataDirectory)
-    self.dicomReceiver.addEventObserver(SlicerProstateEvents.StatusChangedEvent, self.onStatusChanged)
-    self.dicomReceiver.addEventObserver(SlicerProstateEvents.IncomingDataReceiveFinishedEvent, self.onReceiveFinished)
+    self.dicomReceiver.addEventObserver(self.dicomReceiver.StatusChangedEvent, self.onStatusChanged)
+    self.dicomReceiver.addEventObserver(self.dicomReceiver.IncomingDataReceiveFinishedEvent, self.onReceiveFinished)
+    self.dicomReceiver.addEventObserver(self.dicomReceiver.IncomingFileCountChangedEvent, self.onReceivingData)
+    self.dicomSender = None
 
   def __del__(self):
     super(IncomingDataWindow, self).__del__()
@@ -536,8 +611,11 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservation
   @vtk.calldata_type(vtk.VTK_STRING)
   def onStatusChanged(self, caller, event, callData):
     self.textLabel.text = callData
-    self.progress.maximum = 0
-    self.skipButton.enabled = self.progress.maximum == 0
+
+  @vtk.calldata_type(vtk.VTK_INT)
+  def onReceivingData(self, caller, event, callData):
+    self.skipButton.enabled = False
+    self.directoryImportButton.enabled = False
 
   def show(self, disableWidget=None):
     self.disabledWidget = disableWidget
@@ -558,25 +636,35 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservation
     self.statusLabel = qt.QLabel("Status:")
     self.textLabel = qt.QLabel()
     self.layout().addWidget(self.statusLabel, 0, 0)
-    self.layout().addWidget(self.textLabel, 0, 1)
+    self.layout().addWidget(self.textLabel, 0, 1, 1, 2)
 
     self.progress = qt.QProgressBar()
     self.progress.maximum = 0
     self.progress.setAlignment(qt.Qt.AlignCenter)
 
-    self.layout().addWidget(self.progress, 1, 0, 1, qt.QSizePolicy.ExpandFlag)
+    self.layout().addWidget(self.progress, 1, 0, 1, qt.QSizePolicy.Maximum)
 
     self.buttonGroup = qt.QButtonGroup()
     self.skipButton = self.createButton(self.skipButtonText)
     self.cancelButton = self.createButton(self.cancelButtonText)
+    self.directoryImportButton = self.createDirectoryButton(text="Import from directory",
+                                                            caption="Choose directory to import DICOM data from")
+
     self.buttonGroup.addButton(self.skipButton)
     self.buttonGroup.addButton(self.cancelButton)
     self.layout().addWidget(self.skipButton, 2, 0)
     self.layout().addWidget(self.cancelButton, 2, 1)
+    self.layout().addWidget(self.directoryImportButton, 2, 2)
+
+    buttonHeight = 30
+    for b in [self.skipButton, self.cancelButton, self.directoryImportButton]:
+      b.minimumHeight = buttonHeight
+
     self.setupConnections()
 
   def setupConnections(self):
     self.buttonGroup.connect('buttonClicked(QAbstractButton*)', self.onButtonClicked)
+    self.directoryImportButton.directorySelected.connect(self.onImportDirectorySelected)
 
   def onButtonClicked(self, button):
     self.hide()
@@ -584,10 +672,78 @@ class IncomingDataWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservation
       self.invokeEvent(SlicerProstateEvents.IncomingDataSkippedEvent)
     else:
       self.invokeEvent(SlicerProstateEvents.IncomingDataCanceledEvent)
+      if self.dicomSender:
+        self.dicomSender.stop()
 
   def onReceiveFinished(self, caller, event):
     self.hide()
     self.invokeEvent(SlicerProstateEvents.IncomingDataReceiveFinishedEvent)
+
+  def onImportDirectorySelected(self, directory):
+    self.dicomSender = DICOMDirectorySender(directory, 'localhost', 11112)
+
+
+class DICOMDirectorySender(DICOMProcess):
+  """Code to send files/directories to a remote host (uses storescu from dcmtk)
+  """
+
+  STORESCU_PROCESS_FILE_NAME = "storescu"
+
+
+  def __init__(self, directory, address, port, progressCallback=None):
+    super(DICOMDirectorySender, self).__init__()
+    self.directory = directory
+    self.address = address
+    self.port = port
+    self.progressCallback = progressCallback
+    if not self.progressCallback:
+      self.progressCallback = self.defaultProgressCallback
+    self.send()
+
+    self.storescuExecutable = os.path.join(self.exeDir, self.STORESCU_PROCESS_FILE_NAME + self.exeExtension)
+
+  def __del__(self):
+    super(DICOMDirectorySender,self).__del__()
+
+  def onStateChanged(self, newState):
+    stdout, stderr = super(DICOMDirectorySender, self).onStateChanged(newState)
+    if stderr and stderr.size():
+      slicer.util.errorDisplay("An error occurred. For further information click 'Show Details...'",
+                               windowTitle=self.__class__.__name__, detailedText=str(stderr))
+    return stdout, stderr
+
+  def defaultProgressCallback(self,s):
+    print(s)
+
+  def send(self):
+    self.progressCallback("Starting send to %s:%s" % (self.address, self.port))
+    self.start()
+    self.progressCallback("Sent %s to %s:%s" % (self.directory, self.address, self.port))
+
+  def start(self, cmd=None, args=None):
+    self.storeSCUExecutable = os.path.join(self.exeDir, 'storescu'+self.exeExtension)
+    # TODO: check pattern,,, .DS_Store exclusion
+    args = [str(self.address), str(self.port), "-aec", "CTK", "--scan-directories", "--recurse", "--scan-pattern" ,
+            "*[0-9a-Z]", self.directory]
+    super(DICOMDirectorySender,self).start(self.storeSCUExecutable, args)
+    self.process.connect('readyReadStandardOutput()', self.readFromStandardOutput)
+
+  def readFromStandardOutput(self, readLineCallback=None):
+    print('================ready to read stdout from %s===================' % self.__class__.__name__)
+    while self.process.canReadLine():
+      line = str(self.process.readLine())
+      print("From %s: %s" % (self.__class__.__name__, line))
+      if readLineCallback:
+        readLineCallback(line)
+    print('================end reading stdout from %s===================' % self.__class__.__name__)
+    self.readFromStandardError()
+
+  def readFromStandardError(self):
+    stdErr = str(self.process.readAllStandardError())
+    if stdErr:
+      print('================ready to read stderr from %s===================' % self.__class__.__name__)
+      print ("processed stderr: %s" %stdErr)
+      print('================end reading stderr from %s===================' % self.__class__.__name__)
 
 
 class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin):

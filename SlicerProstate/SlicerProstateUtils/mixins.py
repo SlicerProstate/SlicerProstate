@@ -3,7 +3,7 @@ import os, logging
 import slicer
 import SimpleITK as sitk
 import sitkUtils
-from SlicerProstateUtils.decorators import logmethod, multimethod
+from SlicerProstateUtils.decorators import multimethod
 from SlicerProstateUtils.widgets import CustomStatusProgressbar
 
 
@@ -15,7 +15,6 @@ class ParameterNodeObservationMixin(object):
   invoked. Originated was this class from slicer.util.VTKObservationMixin
   """
 
-  @logmethod(logging.DEBUG)
   def __del__(self):
     self.removeEventObservers()
 
