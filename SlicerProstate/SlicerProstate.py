@@ -1,4 +1,5 @@
 import slicer
+from slicer.ScriptedLoadableModule import *
 
 
 class SlicerProstateClass(object):
@@ -7,12 +8,13 @@ class SlicerProstateClass(object):
     pass
 
 
-class SlicerProstate:
+class SlicerProstate(ScriptedLoadableModule):
   """
   This class is the 'hook' for slicer to detect and recognize the plugin
   as a loadable scripted module
   """
   def __init__(self, parent):
+    ScriptedLoadableModule.__init__(self, parent)
     parent.title = "SlicerProstate Utils"
     parent.categories = ["Developer Tools.Utils"]
     parent.hidden = True
