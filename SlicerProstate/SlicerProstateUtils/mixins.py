@@ -78,11 +78,17 @@ class ParameterNodeObservationMixin(object):
 
 class GeneralModuleMixin(ParameterNodeObservationMixin):
 
-  def getSetting(self, setting, moduleName=None):
+  @staticmethod
+  def getTime():
+    import datetime
+    d = datetime.datetime.now()
+    return d.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-4] + "Z"
+
+  def getSetting(self, setting, moduleName=None, default=None):
     moduleName = moduleName if moduleName else self.moduleName
     settings = qt.QSettings()
     setting = settings.value(moduleName + '/' + setting)
-    return setting
+    return setting if setting else default
 
   def setSetting(self, setting, value, moduleName=None):
     moduleName = moduleName if moduleName else self.moduleName
