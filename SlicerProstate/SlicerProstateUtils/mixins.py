@@ -79,6 +79,10 @@ class ParameterNodeObservationMixin(object):
 class GeneralModuleMixin(ParameterNodeObservationMixin):
 
   @staticmethod
+  def getSlicerErrorLogPath():
+    return slicer.app.errorLogModel().filePath
+
+  @staticmethod
   def getTime():
     import datetime
     d = datetime.datetime.now()
