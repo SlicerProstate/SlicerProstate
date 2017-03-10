@@ -279,6 +279,7 @@ class SmartDICOMReceiver(ModuleLogicMixin):
     self.connectEvents()
     self.storeSCPProcess = None
     self.reset()
+    slicer.app.connect('aboutToQuit()', self.stop)
 
   def __del__(self):
     self.stop()
