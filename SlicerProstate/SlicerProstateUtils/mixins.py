@@ -117,13 +117,48 @@ class ModuleWidgetMixin(GeneralModuleMixin):
 
   def createSliceWidgetClassMembers(self, name):
     widget = self.layoutManager.sliceWidget(name)
+    self._addWidget(widget, name)
+    self._addCompositeNode(widget.mrmlSliceCompositeNode(), name)
+    self._addSliceView(widget.sliceView(), name)
+    self._addSliceViewInteractor(widget.sliceView().interactorStyle().GetInteractor(), name)
+    self._addSliceLogic(widget.sliceLogic(), name)
+    self._addSliceNode(widget.sliceLogic().GetSliceNode(), name)
+
+  def _addWidget(self, widget, name):
     setattr(self, name.lower()+"Widget", widget)
-    setattr(self, name.lower()+"CompositeNode", widget.mrmlSliceCompositeNode())
-    setattr(self, name.lower()+"SliceView", widget.sliceView())
-    setattr(self, name.lower()+"SliceViewInteractor", widget.sliceView().interactorStyle().GetInteractor())
-    logic = widget.sliceLogic()
-    setattr(self, name.lower()+"SliceLogic", logic)
-    setattr(self, name.lower()+"SliceNode", logic.GetSliceNode())
+    self._widgets = getattr(self, "_widgets", [])
+    if not widget in self._widgets:
+      self._widgets.append(widget)
+
+  def _addCompositeNode(self, compositeNode, name):
+    setattr(self, name.lower()+"CompositeNode", compositeNode)
+    self._compositeNodes = getattr(self, "_compositeNodes", [])
+    if not compositeNode in self._compositeNodes:
+      self._compositeNodes.append(compositeNode)
+
+  def _addSliceView(self, sliceView, name):
+    setattr(self, name.lower()+"SliceView", sliceView)
+    self._sliceViews = getattr(self, "_sliceViews", [])
+    if not sliceView in self._sliceViews:
+      self._sliceViews.append(sliceView)
+
+  def _addSliceViewInteractor(self, sliceViewInteractor, name):
+    setattr(self, name.lower()+"SliceViewInteractor", sliceViewInteractor)
+    self._sliceViewInteractors = getattr(self, "_sliceViewInteractors", [])
+    if not sliceViewInteractor in self._sliceViewInteractors:
+      self._sliceViewInteractors.append(sliceViewInteractor)
+
+  def _addSliceLogic(self, sliceLogic, name):
+    setattr(self, name.lower()+"SliceLogic", sliceLogic)
+    self._sliceLogics = getattr(self, "_sliceLogics", [])
+    if not sliceLogic in self._sliceLogics:
+      self._sliceLogics.append(sliceLogic)
+
+  def _addSliceNode(self, sliceNode, name):
+    setattr(self, name.lower()+"SliceNode", sliceNode)
+    self._sliceNodes = getattr(self, "_sliceNodes", [])
+    if not sliceNode in self._sliceNodes:
+      self._sliceNodes.append(sliceNode)
 
   def getAllVisibleWidgets(self):
     visibleWidgets = []
