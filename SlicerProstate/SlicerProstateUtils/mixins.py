@@ -117,6 +117,8 @@ class ModuleWidgetMixin(GeneralModuleMixin):
 
   def createSliceWidgetClassMembers(self, name):
     widget = self.layoutManager.sliceWidget(name)
+    if not widget:
+      raise ValueError("sliceWidget name %s does not exist." % name)
     self._addWidget(widget, name)
     self._addCompositeNode(widget.mrmlSliceCompositeNode(), name)
     self._addSliceView(widget.sliceView(), name)
