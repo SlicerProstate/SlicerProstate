@@ -618,3 +618,7 @@ class ModuleLogicMixin(GeneralModuleMixin):
       return extent[1] > 0 and extent[3] > 0 and extent[5] > 0
     except AttributeError:
       return False
+
+  @staticmethod
+  def isAnyListItemInString(string, listItem):
+    return any(item in string for item in listItem)
