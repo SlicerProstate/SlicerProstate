@@ -221,3 +221,15 @@ def postCall(functionToCallFunction):
       functionToCallFunction(args[0])
     return f
   return decorator
+
+
+def singleton(cls):
+  # source: http://stackoverflow.com/questions/12305142/issue-with-singleton-python-call-two-times-init
+  instances = {}
+
+  def getinstance():
+    if cls not in instances:
+      instances[cls] = cls()
+    return instances[cls]
+
+  return getinstance
