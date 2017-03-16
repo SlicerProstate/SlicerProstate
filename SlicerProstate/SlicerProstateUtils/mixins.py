@@ -3,7 +3,7 @@ import os, logging
 import slicer
 import SimpleITK as sitk
 import sitkUtils
-from SlicerProstateUtils.decorators import multimethod
+from SlicerProstateUtils.decorators import multimethod, logmethod
 from SlicerProstateUtils.widgets import CustomStatusProgressbar
 
 
@@ -179,6 +179,10 @@ class ModuleWidgetMixin(GeneralModuleMixin):
     customStatusProgressBar = CustomStatusProgressbar()
     slicer.util.mainWindow().statusBar().addWidget(customStatusProgressBar, 1)
     return customStatusProgressBar
+
+  def hideAllLabels(self):
+    for compositeNode in self._compositeNodes:
+      compositeNode.SetLabelOpacity(0)
 
   @staticmethod
   def setFOV(sliceLogic, FOV):
@@ -366,6 +370,32 @@ class ModuleWidgetMixin(GeneralModuleMixin):
 
 
 class ModuleLogicMixin(GeneralModuleMixin):
+
+  @property
+  def scalarVolumePlugin(self):
+    return slicer.modules.dicomPlugins['DICOMScalarVolumePlugin']()
+
+  @property
+  def volumesLogic(self):
+    return slicer.modules.volumes.logic()
+
+  @property
+  def markupsLogic(self):
+    return slicer.modules.markups.logic()
+
+  @property
+  def cropVolumeLogic(self):
+    return slicer.modules.cropvolume.logic()
+
+  @staticmethod
+  def setTargetVisibility(targetNode, show=True):
+    markupsLogic = slicer.modules.markups.logic()
+    markupsLogic.SetAllMarkupsVisibility(targetNode, show)
+
+  @staticmethod
+  def hideAllFiducialNodes():
+    for targetNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+      ModuleLogicMixin.setTargetVisibility(targetNode, show=False)
 
   @staticmethod
   def cloneFiducials(original, cloneName, keepDisplayNode=False):
