@@ -99,6 +99,14 @@ class GeneralModuleMixin(ParameterNodeObservationMixin):
     settings = qt.QSettings()
     settings.setValue(moduleName + '/' + setting, value)
 
+  @staticmethod
+  def createTimer(interval, slot, singleShot=False):
+    timer = qt.QTimer()
+    timer.setInterval(interval)
+    timer.timeout.connect(slot)
+    timer.setSingleShot(singleShot)
+    return timer
+
 
 class ModuleWidgetMixin(GeneralModuleMixin):
 
@@ -180,9 +188,23 @@ class ModuleWidgetMixin(GeneralModuleMixin):
     slicer.util.mainWindow().statusBar().addWidget(customStatusProgressBar, 1)
     return customStatusProgressBar
 
-  def hideAllLabels(self):
-    for compositeNode in self._compositeNodes:
+  @staticmethod
+  def hideAllLabels():
+    lm = slicer.app.layoutManager()
+    for n in range(lm.mrmlSliceLogics().GetNumberOfItems()):
+      widget = lm.sliceWidget(lm.mrmlSliceLogics().GetItemAsObject(n).GetName())
+      compositeNode = widget.mrmlSliceCompositeNode()
       compositeNode.SetLabelOpacity(0)
+
+  @staticmethod
+  def setFiducialNodeVisibility(targetNode, show=True):
+    markupsLogic = slicer.modules.markups.logic()
+    markupsLogic.SetAllMarkupsVisibility(targetNode, show)
+
+  @staticmethod
+  def hideAllFiducialNodes():
+    for targetNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+      ModuleWidgetMixin.setFiducialNodeVisibility(targetNode, show=False)
 
   @staticmethod
   def setFOV(sliceLogic, FOV):
@@ -388,16 +410,6 @@ class ModuleLogicMixin(GeneralModuleMixin):
     return slicer.modules.cropvolume.logic()
 
   @staticmethod
-  def setTargetVisibility(targetNode, show=True):
-    markupsLogic = slicer.modules.markups.logic()
-    markupsLogic.SetAllMarkupsVisibility(targetNode, show)
-
-  @staticmethod
-  def hideAllFiducialNodes():
-    for targetNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
-      ModuleLogicMixin.setTargetVisibility(targetNode, show=False)
-
-  @staticmethod
   def cloneFiducials(original, cloneName, keepDisplayNode=False):
     clone = slicer.vtkMRMLMarkupsFiducialNode()
     clone.Copy(original)
@@ -426,14 +438,6 @@ class ModuleLogicMixin(GeneralModuleMixin):
         mostRecent = filename
         storedTimeStamp = timeStamp
     return mostRecent
-
-  @staticmethod
-  def createTimer(interval, slot, singleShot=False):
-    timer = qt.QTimer()
-    timer.setInterval(interval)
-    timer.timeout.connect(slot)
-    timer.setSingleShot(singleShot)
-    return timer
 
   @staticmethod
   def getTargetPosition(targetNode, index):
