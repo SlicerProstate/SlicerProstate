@@ -219,6 +219,12 @@ class ModuleWidgetMixin(GeneralModuleMixin):
       node = None
 
   @staticmethod
+  def xyToRAS(sliceLogic, xyPoint):
+    sliceNode = sliceLogic.GetSliceNode()
+    rast = sliceNode.GetXYToRAS().MultiplyPoint(xyPoint + (0,1,))
+    return rast[:3]
+
+  @staticmethod
   def refreshViewNodeIDs(node, sliceNodes):
     displayNode = node.GetDisplayNode()
     if displayNode:

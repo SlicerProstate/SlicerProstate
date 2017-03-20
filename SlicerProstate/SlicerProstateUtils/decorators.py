@@ -61,6 +61,17 @@ def onExceptionReturnNone(func):
   return wrapper
 
 
+def onExceptionReturnFalse(func):
+
+  @wraps(func)
+  def wrapper(*args, **kwargs):
+    try:
+      return func(*args, **kwargs)
+    except:
+      return False
+  return wrapper
+
+
 def onReturnProcessEvents(func):
 
   @wraps(func)
