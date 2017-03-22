@@ -6,7 +6,7 @@ import slicer
 
 
 class logmethod(object):
-  """ This decorator can used for logging methods without the need of reimplementing log messages again and again. The
+  """ This decorator can be used for logging methods without the need of reimplementing log messages over again. The
         decorator logs information about the called method name including caller and arguments
 
       Usage:
@@ -47,6 +47,31 @@ class logmethod(object):
       logging.log(self.logLevel, "Called {}{}{} with args {} and kwargs {}".format(className, func.__name__,
                                                                                    caller, args, kwargs))
       return func(*args, **kwargs)
+    return wrapped_f
+
+
+class onModuleSelected(object):
+  """ This decorator can be used for executing the decorated function/method only if a certain Slicer module with name
+      moduleName is currently selected
+
+      Usage:
+
+      @onModuleSelected(moduleName="SliceTracker")
+      def onLayoutChanged(self, layout=None):
+        print "layout changed"
+  """
+
+  def __init__(self, moduleName):
+    self.moduleName = moduleName
+
+  def __call__(self, func):
+    def wrapped_f(*args, **kwargs):
+      currentModuleName = slicer.util.selectedModule()
+      if currentModuleName == self.moduleName:
+        return func(*args, **kwargs)
+      else:
+        logging.debug("Method {} not executed: \n  Selected module: {}\n  Expected module: {}"
+                      .format(func, currentModuleName, self.moduleName))
     return wrapped_f
 
 
