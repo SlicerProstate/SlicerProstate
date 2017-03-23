@@ -912,9 +912,10 @@ class BasicInformationWatchBox(qt.QGroupBox):
   DEFAULT_STYLE = 'background-color: rgb(230,230,230)'
   PREFERRED_DATE_FORMAT = "%Y-%b-%d"
 
-  def __init__(self, attributes, title="", parent=None):
+  def __init__(self, attributes, title="", parent=None, columns=1):
     super(BasicInformationWatchBox, self).__init__(title, parent)
     self.attributes = attributes
+    self.columns = columns
     if not self.checkAttributeUniqueness():
       raise ValueError("Attribute names are not unique.")
     self.setup()
@@ -932,9 +933,11 @@ class BasicInformationWatchBox(qt.QGroupBox):
     layout = qt.QGridLayout()
     self.setLayout(layout)
 
+    column = 0
     for index, attribute in enumerate(self.attributes):
-      layout.addWidget(attribute.titleLabel, index, 0, 1, 1, qt.Qt.AlignLeft)
-      layout.addWidget(attribute.valueLabel, index, 1, 1, 2)
+      layout.addWidget(attribute.titleLabel, index/self.columns, column*2, 1, 1, qt.Qt.AlignLeft)
+      layout.addWidget(attribute.valueLabel, index/self.columns, column*2+1, 1, qt.Qt.AlignLeft)
+      column = column+1 if column<self.columns-1 else 0
 
   def getAttribute(self, name):
     for attribute in self.attributes:
@@ -983,8 +986,8 @@ class FileBasedInformationWatchBox(BasicInformationWatchBox):
       self.reset()
     self.updateInformation()
 
-  def __init__(self, attributes, title="", sourceFile=None, parent=None):
-    super(FileBasedInformationWatchBox, self).__init__(attributes, title, parent)
+  def __init__(self, attributes, title="", sourceFile=None, parent=None, columns=1):
+    super(FileBasedInformationWatchBox, self).__init__(attributes, title, parent, columns)
     if sourceFile:
       self.sourceFile = sourceFile
 
@@ -1019,8 +1022,8 @@ class XMLBasedInformationWatchBox(FileBasedInformationWatchBox):
       self.reset()
     self.updateInformation()
 
-  def __init__(self, attributes, title="", sourceFile=None, parent=None):
-    super(XMLBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent)
+  def __init__(self, attributes, title="", sourceFile=None, parent=None, columns=1):
+    super(XMLBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent, columns)
 
   def reset(self):
     super(XMLBasedInformationWatchBox, self).reset()
@@ -1044,8 +1047,8 @@ class DICOMBasedInformationWatchBox(FileBasedInformationWatchBox):
 
   DATE_TAGS_TO_FORMAT = [DICOMTAGS.STUDY_DATE, DICOMTAGS.PATIENT_BIRTH_DATE]
 
-  def __init__(self, attributes, title="", sourceFile=None, parent=None):
-    super(DICOMBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent)
+  def __init__(self, attributes, title="", sourceFile=None, parent=None, columns=1):
+    super(DICOMBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent, columns)
 
   def updateInformationFromWatchBoxAttribute(self, attribute):
     if attribute.tags and self.sourceFile:
