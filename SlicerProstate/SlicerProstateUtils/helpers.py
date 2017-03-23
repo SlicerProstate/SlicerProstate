@@ -852,6 +852,7 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin)
 class WatchBoxAttribute(object):
 
   MASKED_PLACEHOLDER = "X"
+  TRUNCATE_LENGTH = None
 
   @property
   def title(self):
@@ -893,6 +894,7 @@ class WatchBoxAttribute(object):
     self.name = name
     self._masked = masked
     self.titleLabel = qt.QLabel()
+    self.titleLabel.setStyleSheet("QLabel{ font-weight: bold;}")
     self.valueLabel = qt.QLabel()
     self.title = title
     self.callback = callback
@@ -900,7 +902,8 @@ class WatchBoxAttribute(object):
     self.value = None
 
   def updateVisibleValues(self, value):
-    self.valueLabel.text = value
+    self.valueLabel.text = value[0:self.TRUNCATE_LENGTH]+"..." if self.TRUNCATE_LENGTH and \
+                                                                  len(value) > self.TRUNCATE_LENGTH else value
     self.valueLabel.toolTip = value
 
   def maskedValue(self, value):
