@@ -1067,7 +1067,7 @@ class DICOMBasedInformationWatchBox(FileBasedInformationWatchBox):
     return ""
 
 
-class TargetCreationWidget(ModuleWidgetMixin):
+class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
 
   HEADERS = ["Name","Delete"]
   MODIFIED_EVENT = "ModifiedEvent"
@@ -1091,8 +1091,8 @@ class TargetCreationWidget(ModuleWidgetMixin):
       selectionNode.SetReferenceActivePlaceNodeID(None)
     self.updateTable()
 
-  def __init__(self, parent):
-    self.parent = parent
+  def __init__(self, parent=None):
+    qt.QWidget.__init__(self, parent)
     self.connectedButtons = []
     self.fiducialsNodeObservers = []
     self.setup()
@@ -1100,6 +1100,7 @@ class TargetCreationWidget(ModuleWidgetMixin):
     self.markupsLogic = slicer.modules.markups.logic()
 
   def setup(self):
+    self.setLayout(qt.QGridLayout())
     self.placeWidget = slicer.qSlicerMarkupsPlaceWidget()
     self.placeWidget.setMRMLScene(slicer.mrmlScene)
     self.placeWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceMultipleMarkups
@@ -1110,7 +1111,7 @@ class TargetCreationWidget(ModuleWidgetMixin):
     self.table.setMaximumHeight(200)
     self.table.horizontalHeader().setStretchLastSection(True)
     self.resetTable()
-    self.parent.addRow(self.table)
+    self.layout().addWidget(self.table)
 
     self.setupConnections()
 
