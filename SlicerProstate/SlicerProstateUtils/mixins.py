@@ -662,3 +662,13 @@ class ModuleLogicMixin(GeneralModuleMixin):
   @staticmethod
   def isAnyListItemInString(string, listItem):
     return any(item in string for item in listItem)
+
+  @staticmethod
+  def smoothSegmentation(label, labelNumber=None):
+    params = {
+      'inputImageName': label.GetID(),
+      'outputImageName': label.GetID()
+    }
+    if labelNumber:
+      params['labelNumber'] = labelNumber
+    slicer.cli.run(slicer.modules.segmentationsmoothing, None, params, wait_for_completion=True)
