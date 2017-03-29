@@ -615,7 +615,7 @@ class ModuleLogicMixin(GeneralModuleMixin):
     return node
 
   @staticmethod
-  def saveNodeData(node, outputDir, extension, replaceUnwantedCharacters=True, name=None, overwrite=False):
+  def saveNodeData(node, outputDir, extension, replaceUnwantedCharacters=True, name=None, overwrite=True):
     name = name if name else node.GetName()
     if replaceUnwantedCharacters:
       name = ModuleLogicMixin.replaceUnwantedCharacters(name)
