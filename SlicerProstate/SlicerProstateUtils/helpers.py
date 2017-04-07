@@ -1075,12 +1075,13 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
 
   @property
   def currentNode(self):
-    return self._currentNode
+    return self.fiducialListSelector.currentNode()
 
   @currentNode.setter
   def currentNode(self, node):
     if self._currentNode:
       self.removeTargetListObservers()
+    self.fiducialListSelector.setCurrentNode(node)
     self._currentNode = node
     if node:
       self.placeWidget.setCurrentNode(node)
@@ -1091,12 +1092,21 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
       selectionNode.SetReferenceActivePlaceNodeID(None)
     self.updateTable()
 
+  @property
+  def targetListSelectorVisible(self):
+    return self.targetListSelectorArea.visible
+
+  @targetListSelectorVisible.setter
+  def targetListSelectorVisible(self, visible):
+    self.targetListSelectorArea.visible = visible
+
   def __init__(self, parent=None):
     qt.QWidget.__init__(self, parent)
     self.connectedButtons = []
     self.fiducialsNodeObservers = []
     self.setup()
     self._currentNode = None
+    self.setupConnections()
     self.markupsLogic = slicer.modules.markups.logic()
 
   def setup(self):
@@ -1104,7 +1114,18 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
     self.placeWidget = slicer.qSlicerMarkupsPlaceWidget()
     self.placeWidget.setMRMLScene(slicer.mrmlScene)
     self.placeWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceMultipleMarkups
+    self.setupTargetFiducialListSelector()
+    self.setupTargetTable()
 
+  def setupTargetFiducialListSelector(self):
+    self.fiducialListSelector = self.createComboBox(nodeTypes=["vtkMRMLMarkupsFiducialNode", ""], addEnabled=True,
+                                                    removeEnabled=True, noneEnabled=False, showChildNodeTypes=False,
+                                                    selectNodeUponCreation=True, toolTip="Select target list")
+    self.targetListSelectorArea = self.createHLayout([qt.QLabel("Target List: "), self.fiducialListSelector])
+    self.targetListSelectorArea.hide()
+    self.layout().addWidget(self.targetListSelectorArea)
+
+  def setupTargetTable(self):
     self.table = qt.QTableWidget(0, 2)
     self.table.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
     self.table.setSelectionMode(qt.QAbstractItemView.SingleSelection)
@@ -1113,14 +1134,16 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
     self.resetTable()
     self.layout().addWidget(self.table)
 
-    self.setupConnections()
-
   def setupConnections(self):
+    self.fiducialListSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiducialListSelected)
     self.table.connect("cellChanged (int,int)", self.onCellChanged)
 
   def reset(self):
     self.stopPlacing()
     self.currentNode = None
+
+  def onFiducialListSelected(self, node):
+    self.currentNode = node
 
   def startPlacing(self):
     self.placeWidget.setPlaceModeEnabled(True)
@@ -1134,6 +1157,7 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
 
   def resetTable(self):
     self.cleanupButtons()
+    self.table.setRowCount(0)
     self.table.clear()
     self.table.setHorizontalHeaderLabels(self.HEADERS)
 
@@ -1143,9 +1167,9 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
     self.connectedButtons = []
 
   def removeTargetListObservers(self):
-    if self._currentNode and len(self.fiducialsNodeObservers) > 0:
+    if self.currentNode and len(self.fiducialsNodeObservers) > 0:
       for observer in self.fiducialsNodeObservers:
-        self._currentNode.RemoveObserver(observer)
+        self.currentNode.RemoveObserver(observer)
     self.fiducialsNodeObservers = []
 
   def addTargetListObservers(self):
@@ -1186,6 +1210,12 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
   def onCellChanged(self, row, col):
     if col == 0:
       self.currentNode.SetNthFiducialLabel(row, self.table.item(row, col).text())
+
+  def getOrCreateFiducialNode(self):
+    node = self.fiducialListSelector.currentNode()
+    if not node:
+      node = self.fiducialListSelector.addNode()
+    return node
 
 
 class SettingsMessageBox(qt.QMessageBox, ModuleWidgetMixin):
