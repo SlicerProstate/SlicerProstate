@@ -3,8 +3,7 @@ import os, logging
 import slicer
 import SimpleITK as sitk
 import sitkUtils
-from SlicerProstateUtils.decorators import multimethod, logmethod
-from SlicerProstateUtils.widgets import CustomStatusProgressbar
+from SlicerProstateUtils.decorators import multimethod
 
 
 class ParameterNodeObservationMixin(object):
@@ -179,14 +178,6 @@ class ModuleWidgetMixin(GeneralModuleMixin):
       if widget.sliceView().visible:
         visibleWidgets.append(widget)
     return visibleWidgets
-
-  def getOrCreateCustomProgressBar(self):
-    for child in slicer.util.mainWindow().statusBar().children():
-      if isinstance(child, CustomStatusProgressbar):
-        return child
-    customStatusProgressBar = CustomStatusProgressbar()
-    slicer.util.mainWindow().statusBar().addWidget(customStatusProgressBar, 1)
-    return customStatusProgressBar
 
   @staticmethod
   def hideAllLabels():
