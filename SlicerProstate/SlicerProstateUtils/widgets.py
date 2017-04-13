@@ -1,5 +1,8 @@
-import qt, slicer
+import qt
+import slicer
 import vtk
+import os
+import sys
 from mixins import ModuleWidgetMixin
 from decorators import singleton
 
@@ -72,6 +75,15 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
   MODIFIED_EVENT = "ModifiedEvent"
   FIDUCIAL_LIST_OBSERVED_EVENTS = [MODIFIED_EVENT]
 
+  DEFAULT_FIDUCIAL_LIST_NAME = None
+  DEFAULT_CREATE_FIDUCIALS_TEXT = "Place Target(s)"
+  DEFAULT_MODIFY_FIDUCIALS_TEXT = "Modify Target(s)"
+
+  TargetingStartedEvent = vtk.vtkCommand.UserEvent + 335
+  TargetingFinishedEvent = vtk.vtkCommand.UserEvent + 336
+
+  ICON_SIZE = qt.QSize(24, 24)
+
   @property
   def currentNode(self):
     return self.fiducialListSelector.currentNode()
@@ -83,12 +95,12 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
     self.fiducialListSelector.setCurrentNode(node)
     self._currentNode = node
     if node:
-      self.placeWidget.setCurrentNode(node)
       self.addTargetListObservers()
-      self.markupsLogic.SetActiveListID(node)
+      self.selectionNode.SetReferenceActivePlaceNodeID(node.GetID())
     else:
-      selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
-      selectionNode.SetReferenceActivePlaceNodeID(None)
+      self.selectionNode.SetReferenceActivePlaceNodeID(None)
+
+    self.updateButtons()
     self.updateTable()
 
   @property
@@ -99,26 +111,42 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
   def targetListSelectorVisible(self, visible):
     self.targetListSelectorArea.visible = visible
 
-  def __init__(self, parent=None):
+  def __init__(self, parent=None, **kwargs):
     qt.QWidget.__init__(self, parent)
+    self.iconPath = os.path.join(os.path.dirname(sys.modules[self.__module__].__file__), '../Resources/Icons')
+    self.processKwargs(**kwargs)
     self.connectedButtons = []
-    self.fiducialsNodeObservers = []
+    self.fiducialNodeObservers = []
+    self.selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
+    self.interactionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLInteractionNodeSingleton")
+    self.setupIcons()
     self.setup()
     self._currentNode = None
     self.setupConnections()
-    self.markupsLogic = slicer.modules.markups.logic()
+
+  def processKwargs(self, **kwargs):
+    for key, value in kwargs.iteritems():
+      if hasattr(self, key):
+        setattr(self, key, value)
+
+  def reset(self):
+    self.stopPlacing()
+    self.currentNode = None
+
+  def setupIcons(self):
+    self.setTargetsIcon = self.createIcon("icon-addFiducial.png", self.iconPath)
+    self.modifyTargetsIcon = self.createIcon("icon-modifyFiducial.png", self.iconPath)
+    self.finishIcon = self.createIcon("icon-apply.png", self.iconPath)
 
   def setup(self):
     self.setLayout(qt.QGridLayout())
-    self.placeWidget = slicer.qSlicerMarkupsPlaceWidget()
-    self.placeWidget.setMRMLScene(slicer.mrmlScene)
-    self.placeWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceMultipleMarkups
     self.setupTargetFiducialListSelector()
     self.setupTargetTable()
+    self.setupButtons()
 
   def setupTargetFiducialListSelector(self):
     self.fiducialListSelector = self.createComboBox(nodeTypes=["vtkMRMLMarkupsFiducialNode", ""], addEnabled=True,
-                                                    removeEnabled=True, noneEnabled=False, showChildNodeTypes=False,
+                                                    removeEnabled=True, noneEnabled=True, showChildNodeTypes=False,
                                                     selectNodeUponCreation=True, toolTip="Select target list")
     self.targetListSelectorArea = self.createHLayout([qt.QLabel("Target List: "), self.fiducialListSelector])
     self.targetListSelectorArea.hide()
@@ -133,25 +161,48 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
     self.resetTable()
     self.layout().addWidget(self.table)
 
+  def setupButtons(self):
+    self.startTargetingButton = self.createButton("", enabled=True, icon=self.setTargetsIcon, iconSize=self.ICON_SIZE,
+                                                  toolTip="Start placing targets")
+    self.stopTargetingButton = self.createButton("", enabled=False, icon=self.finishIcon, iconSize=self.ICON_SIZE,
+                                                 toolTip="Finish placing targets")
+    self.buttons = self.createHLayout([self.startTargetingButton, self.stopTargetingButton])
+    self.layout().addWidget(self.buttons)
+
   def setupConnections(self):
+    self.startTargetingButton.clicked.connect(self.startPlacing)
+    self.stopTargetingButton.clicked.connect(self.stopPlacing)
+    # TODO: think about the following since it will always listen!
+    self.interactionNodeObserver = self.interactionNode.AddObserver(self.interactionNode.InteractionModeChangedEvent,
+                                                                    self.onInteractionModeChanged)
     self.fiducialListSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiducialListSelected)
     self.table.connect("cellChanged (int,int)", self.onCellChanged)
 
-  def reset(self):
-    self.stopPlacing()
-    self.currentNode = None
+  def onInteractionModeChanged(self, caller, event):
+    if not self.currentNode:
+      return
+    if self.selectionNode.GetActivePlaceNodeID() == self.currentNode.GetID():
+      interactionMode = self.interactionNode.GetCurrentInteractionMode()
+      self.invokeEvent(self.TargetingStartedEvent if interactionMode == self.interactionNode.Place else
+                       self.TargetingFinishedEvent)
+      self.updateButtons()
 
   def onFiducialListSelected(self, node):
     self.currentNode = node
 
   def startPlacing(self):
-    self.placeWidget.setPlaceModeEnabled(True)
+    if not self.currentNode:
+      self.createNewFiducialNode(name=self.DEFAULT_FIDUCIAL_LIST_NAME)
+    self.selectionNode.SetReferenceActivePlaceNodeID(self.currentNode.GetID())
+    self.interactionNode.SetPlaceModePersistence(1)
+    self.interactionNode.SetCurrentInteractionMode(self.interactionNode.Place)
 
   def stopPlacing(self):
-    self.placeWidget.setPlaceModeEnabled(False)
+    self.interactionNode.SetCurrentInteractionMode(self.interactionNode.ViewTransform)
 
   def createNewFiducialNode(self, name=None):
-    self.currentNode = slicer.mrmlScene.GetNodeByID(self.markupsLogic.AddNewFiducialNode())
+    markupsLogic = slicer.modules.markups.logic()
+    self.currentNode = slicer.mrmlScene.GetNodeByID(markupsLogic.AddNewFiducialNode())
     self.currentNode.SetName(name if name else self.currentNode.GetName())
 
   def resetTable(self):
@@ -166,15 +217,26 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
     self.connectedButtons = []
 
   def removeTargetListObservers(self):
-    if self.currentNode and len(self.fiducialsNodeObservers) > 0:
-      for observer in self.fiducialsNodeObservers:
+    if self.currentNode and len(self.fiducialNodeObservers) > 0:
+      for observer in self.fiducialNodeObservers:
         self.currentNode.RemoveObserver(observer)
-    self.fiducialsNodeObservers = []
+    self.fiducialNodeObservers = []
 
   def addTargetListObservers(self):
     if self.currentNode:
       for event in self.FIDUCIAL_LIST_OBSERVED_EVENTS:
-        self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
+        self.fiducialNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
+
+  def updateButtons(self):
+    if not self.currentNode or self.currentNode.GetNumberOfFiducials() == 0:
+      self.startTargetingButton.icon = self.setTargetsIcon
+      self.startTargetingButton.toolTip = "Place Target(s)"
+    else:
+      self.startTargetingButton.icon = self.modifyTargetsIcon
+      self.startTargetingButton.toolTip = "Modify Target(s)"
+    interactionMode = self.interactionNode.GetCurrentInteractionMode()
+    self.startTargetingButton.enabled = not interactionMode == self.interactionNode.Place
+    self.stopTargetingButton.enabled = interactionMode == self.interactionNode.Place
 
   def updateTable(self):
     self.resetTable()
@@ -188,7 +250,6 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
       cellLabel = qt.QTableWidgetItem(label)
       self.table.setItem(i, 0, cellLabel)
       self.addDeleteButton(i, 1)
-    self.table.show()
 
   def addDeleteButton(self, row, col):
     button = qt.QPushButton('X')
@@ -204,6 +265,7 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
   def onFiducialsUpdated(self, caller, event):
     if caller.IsA("vtkMRMLMarkupsFiducialNode") and event == self.MODIFIED_EVENT:
       self.updateTable()
+      self.updateButtons()
       self.invokeEvent(vtk.vtkCommand.ModifiedEvent)
 
   def onCellChanged(self, row, col):
@@ -215,3 +277,6 @@ class TargetCreationWidget(qt.QWidget, ModuleWidgetMixin):
     if not node:
       node = self.fiducialListSelector.addNode()
     return node
+
+  def hasTargetListAtLeastOneTarget(self):
+    return self.currentNode is not None and self.currentNode.GetNumberOfFiducials() > 0

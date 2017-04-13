@@ -16,6 +16,9 @@ set(MODULE_PYTHON_SCRIPTS
   )
 
 set(MODULE_PYTHON_RESOURCES
+  Resources/Icons/icon-addFiducial.png
+  Resources/Icons/icon-modifyFiducial.png
+  Resources/Icons/icon-apply.png
   Resources/Icons/cursor-window-level.png
   Resources/Icons/icon-settings.png
   Resources/Icons/icon-star-filled.png
