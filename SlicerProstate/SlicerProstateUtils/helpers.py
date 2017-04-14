@@ -1,14 +1,21 @@
-import DICOMLib
-import os, sys, ast
-import slicer, ctk, vtk, qt
-import xml.dom.minidom, datetime
+import ast
+import datetime
 import logging
+import os
+import sys
 import urllib
+import xml.dom.minidom
 from urllib import FancyURLopener
-from constants import DICOMTAGS
-from mixins import ModuleLogicMixin, ModuleWidgetMixin, ParameterNodeObservationMixin
-from events import SlicerProstateEvents
+
+import DICOMLib
+import ctk
+import qt
+import slicer
+import vtk
 from DICOMLib import DICOMProcess
+from constants import DICOMTAGS
+from events import SlicerProstateEvents
+from mixins import ModuleLogicMixin, ModuleWidgetMixin, ParameterNodeObservationMixin
 
 
 class SampleDataDownloader(FancyURLopener, ParameterNodeObservationMixin):
@@ -279,6 +286,7 @@ class SmartDICOMReceiver(ModuleLogicMixin):
     self.connectEvents()
     self.storeSCPProcess = None
     self.reset()
+    slicer.app.connect('aboutToQuit()', self.stop)
 
   def __del__(self):
     self.stop()
@@ -851,6 +859,7 @@ class RatingWindow(qt.QWidget, ModuleWidgetMixin, ParameterNodeObservationMixin)
 class WatchBoxAttribute(object):
 
   MASKED_PLACEHOLDER = "X"
+  TRUNCATE_LENGTH = None
 
   @property
   def title(self):
@@ -892,6 +901,7 @@ class WatchBoxAttribute(object):
     self.name = name
     self._masked = masked
     self.titleLabel = qt.QLabel()
+    self.titleLabel.setStyleSheet("QLabel{ font-weight: bold;}")
     self.valueLabel = qt.QLabel()
     self.title = title
     self.callback = callback
@@ -899,7 +909,8 @@ class WatchBoxAttribute(object):
     self.value = None
 
   def updateVisibleValues(self, value):
-    self.valueLabel.text = value
+    self.valueLabel.text = value[0:self.TRUNCATE_LENGTH]+"..." if self.TRUNCATE_LENGTH and \
+                                                                  len(value) > self.TRUNCATE_LENGTH else value
     self.valueLabel.toolTip = value
 
   def maskedValue(self, value):
@@ -911,9 +922,10 @@ class BasicInformationWatchBox(qt.QGroupBox):
   DEFAULT_STYLE = 'background-color: rgb(230,230,230)'
   PREFERRED_DATE_FORMAT = "%Y-%b-%d"
 
-  def __init__(self, attributes, title="", parent=None):
+  def __init__(self, attributes, title="", parent=None, columns=1):
     super(BasicInformationWatchBox, self).__init__(title, parent)
     self.attributes = attributes
+    self.columns = columns
     if not self.checkAttributeUniqueness():
       raise ValueError("Attribute names are not unique.")
     self.setup()
@@ -931,9 +943,11 @@ class BasicInformationWatchBox(qt.QGroupBox):
     layout = qt.QGridLayout()
     self.setLayout(layout)
 
+    column = 0
     for index, attribute in enumerate(self.attributes):
-      layout.addWidget(attribute.titleLabel, index, 0, 1, 1, qt.Qt.AlignLeft)
-      layout.addWidget(attribute.valueLabel, index, 1, 1, 2)
+      layout.addWidget(attribute.titleLabel, index/self.columns, column*2, 1, 1, qt.Qt.AlignLeft)
+      layout.addWidget(attribute.valueLabel, index/self.columns, column*2+1, 1, qt.Qt.AlignLeft)
+      column = column+1 if column<self.columns-1 else 0
 
   def getAttribute(self, name):
     for attribute in self.attributes:
@@ -982,8 +996,8 @@ class FileBasedInformationWatchBox(BasicInformationWatchBox):
       self.reset()
     self.updateInformation()
 
-  def __init__(self, attributes, title="", sourceFile=None, parent=None):
-    super(FileBasedInformationWatchBox, self).__init__(attributes, title, parent)
+  def __init__(self, attributes, title="", sourceFile=None, parent=None, columns=1):
+    super(FileBasedInformationWatchBox, self).__init__(attributes, title, parent, columns)
     if sourceFile:
       self.sourceFile = sourceFile
 
@@ -1018,8 +1032,8 @@ class XMLBasedInformationWatchBox(FileBasedInformationWatchBox):
       self.reset()
     self.updateInformation()
 
-  def __init__(self, attributes, title="", sourceFile=None, parent=None):
-    super(XMLBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent)
+  def __init__(self, attributes, title="", sourceFile=None, parent=None, columns=1):
+    super(XMLBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent, columns)
 
   def reset(self):
     super(XMLBasedInformationWatchBox, self).reset()
@@ -1043,8 +1057,8 @@ class DICOMBasedInformationWatchBox(FileBasedInformationWatchBox):
 
   DATE_TAGS_TO_FORMAT = [DICOMTAGS.STUDY_DATE, DICOMTAGS.PATIENT_BIRTH_DATE]
 
-  def __init__(self, attributes, title="", sourceFile=None, parent=None):
-    super(DICOMBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent)
+  def __init__(self, attributes, title="", sourceFile=None, parent=None, columns=1):
+    super(DICOMBasedInformationWatchBox, self).__init__(attributes, title, sourceFile, parent, columns)
 
   def updateInformationFromWatchBoxAttribute(self, attribute):
     if attribute.tags and self.sourceFile:
@@ -1058,126 +1072,6 @@ class DICOMBasedInformationWatchBox(FileBasedInformationWatchBox):
         values.append(currentValue)
       return self._getTagValueFromTagValues(values)
     return ""
-
-
-class TargetCreationWidget(ModuleWidgetMixin):
-
-  HEADERS = ["Name","Delete"]
-  MODIFIED_EVENT = "ModifiedEvent"
-  FIDUCIAL_LIST_OBSERVED_EVENTS = [MODIFIED_EVENT]
-
-  @property
-  def currentNode(self):
-    return self._currentNode
-
-  @currentNode.setter
-  def currentNode(self, node):
-    if self._currentNode:
-      self.removeTargetListObservers()
-    self._currentNode = node
-    if node:
-      self.placeWidget.setCurrentNode(node)
-      self.addTargetListObservers()
-      self.markupsLogic.SetActiveListID(node)
-    else:
-      selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
-      selectionNode.SetReferenceActivePlaceNodeID(None)
-    self.updateTable()
-
-  def __init__(self, parent):
-    self.parent = parent
-    self.connectedButtons = []
-    self.fiducialsNodeObservers = []
-    self.setup()
-    self._currentNode = None
-    self.markupsLogic = slicer.modules.markups.logic()
-
-  def setup(self):
-    self.placeWidget = slicer.qSlicerMarkupsPlaceWidget()
-    self.placeWidget.setMRMLScene(slicer.mrmlScene)
-    self.placeWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceMultipleMarkups
-
-    self.table = qt.QTableWidget(0, 2)
-    self.table.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
-    self.table.setSelectionMode(qt.QAbstractItemView.SingleSelection)
-    self.table.setMaximumHeight(200)
-    self.table.horizontalHeader().setStretchLastSection(True)
-    self.resetTable()
-    self.parent.addRow(self.table)
-
-    self.setupConnections()
-
-  def setupConnections(self):
-    self.table.connect("cellChanged (int,int)", self.onCellChanged)
-
-  def reset(self):
-    self.stopPlacing()
-    self.currentNode = None
-
-  def startPlacing(self):
-    self.placeWidget.setPlaceModeEnabled(True)
-
-  def stopPlacing(self):
-    self.placeWidget.setPlaceModeEnabled(False)
-
-  def createNewFiducialNode(self, name=None):
-    self.currentNode = slicer.mrmlScene.GetNodeByID(self.markupsLogic.AddNewFiducialNode())
-    self.currentNode.SetName(name if name else self.currentNode.GetName())
-
-  def resetTable(self):
-    self.cleanupButtons()
-    self.table.clear()
-    self.table.setHorizontalHeaderLabels(self.HEADERS)
-
-  def cleanupButtons(self):
-    for button in self.connectedButtons:
-      button.clicked.disconnect(self.handleDeleteButtonClicked)
-    self.connectedButtons = []
-
-  def removeTargetListObservers(self):
-    if self._currentNode and len(self.fiducialsNodeObservers) > 0:
-      for observer in self.fiducialsNodeObservers:
-        self._currentNode.RemoveObserver(observer)
-    self.fiducialsNodeObservers = []
-
-  def addTargetListObservers(self):
-    if self.currentNode:
-      for event in self.FIDUCIAL_LIST_OBSERVED_EVENTS:
-        self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
-
-  def updateTable(self):
-    self.resetTable()
-    if not self.currentNode:
-      return
-    nOfControlPoints = self.currentNode.GetNumberOfFiducials()
-    if self.table.rowCount != nOfControlPoints:
-      self.table.setRowCount(nOfControlPoints)
-    for i in range(nOfControlPoints):
-      label = self.currentNode.GetNthFiducialLabel(i)
-      cellLabel = qt.QTableWidgetItem(label)
-      self.table.setItem(i, 0, cellLabel)
-      self.addDeleteButton(i, 1)
-    self.table.show()
-
-  def addDeleteButton(self, row, col):
-    button = qt.QPushButton('X')
-    self.table.setCellWidget(row, col, button)
-    button.clicked.connect(lambda: self.handleDeleteButtonClicked(row))
-    self.connectedButtons.append(button)
-
-  def handleDeleteButtonClicked(self, idx):
-    if slicer.util.confirmYesNoDisplay("Do you really want to delete fiducial %s?"
-                                               % self.currentNode.GetNthFiducialLabel(idx), windowTitle="mpReview"):
-      self.currentNode.RemoveMarkup(idx)
-
-  def onFiducialsUpdated(self, caller, event):
-    if caller.IsA("vtkMRMLMarkupsFiducialNode") and event == self.MODIFIED_EVENT:
-      self.updateTable()
-      self.invokeEvent(vtk.vtkCommand.ModifiedEvent)
-
-  def onCellChanged(self, row, col):
-    if col == 0:
-      self.currentNode.SetNthFiducialLabel(row, self.table.item(row, col).text())
 
 
 class SettingsMessageBox(qt.QMessageBox, ModuleWidgetMixin):

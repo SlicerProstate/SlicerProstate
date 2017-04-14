@@ -4,7 +4,6 @@ import slicer
 import SimpleITK as sitk
 import sitkUtils
 from SlicerProstateUtils.decorators import multimethod
-from SlicerProstateUtils.widgets import CustomStatusProgressbar
 
 
 class ParameterNodeObservationMixin(object):
@@ -78,16 +77,34 @@ class ParameterNodeObservationMixin(object):
 
 class GeneralModuleMixin(ParameterNodeObservationMixin):
 
-  def getSetting(self, setting, moduleName=None):
+  @staticmethod
+  def getSlicerErrorLogPath():
+    return slicer.app.errorLogModel().filePath
+
+  @staticmethod
+  def getTime():
+    import datetime
+    d = datetime.datetime.now()
+    return d.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-4] + "Z"
+
+  def getSetting(self, setting, moduleName=None, default=None):
     moduleName = moduleName if moduleName else self.moduleName
     settings = qt.QSettings()
     setting = settings.value(moduleName + '/' + setting)
-    return setting
+    return setting if setting else default
 
   def setSetting(self, setting, value, moduleName=None):
     moduleName = moduleName if moduleName else self.moduleName
     settings = qt.QSettings()
     settings.setValue(moduleName + '/' + setting, value)
+
+  @staticmethod
+  def createTimer(interval, slot, singleShot=False):
+    timer = qt.QTimer()
+    timer.setInterval(interval)
+    timer.timeout.connect(slot)
+    timer.setSingleShot(singleShot)
+    return timer
 
 
 class ModuleWidgetMixin(GeneralModuleMixin):
@@ -107,13 +124,50 @@ class ModuleWidgetMixin(GeneralModuleMixin):
 
   def createSliceWidgetClassMembers(self, name):
     widget = self.layoutManager.sliceWidget(name)
+    if not widget:
+      raise ValueError("sliceWidget name %s does not exist." % name)
+    self._addWidget(widget, name)
+    self._addCompositeNode(widget.mrmlSliceCompositeNode(), name)
+    self._addSliceView(widget.sliceView(), name)
+    self._addSliceViewInteractor(widget.sliceView().interactorStyle().GetInteractor(), name)
+    self._addSliceLogic(widget.sliceLogic(), name)
+    self._addSliceNode(widget.sliceLogic().GetSliceNode(), name)
+
+  def _addWidget(self, widget, name):
     setattr(self, name.lower()+"Widget", widget)
-    setattr(self, name.lower()+"CompositeNode", widget.mrmlSliceCompositeNode())
-    setattr(self, name.lower()+"SliceView", widget.sliceView())
-    setattr(self, name.lower()+"SliceViewInteractor", widget.sliceView().interactorStyle().GetInteractor())
-    logic = widget.sliceLogic()
-    setattr(self, name.lower()+"SliceLogic", logic)
-    setattr(self, name.lower()+"SliceNode", logic.GetSliceNode())
+    self._widgets = getattr(self, "_widgets", [])
+    if not widget in self._widgets:
+      self._widgets.append(widget)
+
+  def _addCompositeNode(self, compositeNode, name):
+    setattr(self, name.lower()+"CompositeNode", compositeNode)
+    self._compositeNodes = getattr(self, "_compositeNodes", [])
+    if not compositeNode in self._compositeNodes:
+      self._compositeNodes.append(compositeNode)
+
+  def _addSliceView(self, sliceView, name):
+    setattr(self, name.lower()+"SliceView", sliceView)
+    self._sliceViews = getattr(self, "_sliceViews", [])
+    if not sliceView in self._sliceViews:
+      self._sliceViews.append(sliceView)
+
+  def _addSliceViewInteractor(self, sliceViewInteractor, name):
+    setattr(self, name.lower()+"SliceViewInteractor", sliceViewInteractor)
+    self._sliceViewInteractors = getattr(self, "_sliceViewInteractors", [])
+    if not sliceViewInteractor in self._sliceViewInteractors:
+      self._sliceViewInteractors.append(sliceViewInteractor)
+
+  def _addSliceLogic(self, sliceLogic, name):
+    setattr(self, name.lower()+"SliceLogic", sliceLogic)
+    self._sliceLogics = getattr(self, "_sliceLogics", [])
+    if not sliceLogic in self._sliceLogics:
+      self._sliceLogics.append(sliceLogic)
+
+  def _addSliceNode(self, sliceNode, name):
+    setattr(self, name.lower()+"SliceNode", sliceNode)
+    self._sliceNodes = getattr(self, "_sliceNodes", [])
+    if not sliceNode in self._sliceNodes:
+      self._sliceNodes.append(sliceNode)
 
   def getAllVisibleWidgets(self):
     visibleWidgets = []
@@ -125,13 +179,23 @@ class ModuleWidgetMixin(GeneralModuleMixin):
         visibleWidgets.append(widget)
     return visibleWidgets
 
-  def getOrCreateCustomProgressBar(self):
-    for child in slicer.util.mainWindow().statusBar().children():
-      if isinstance(child, CustomStatusProgressbar):
-        return child
-    customStatusProgressBar = CustomStatusProgressbar()
-    slicer.util.mainWindow().statusBar().addWidget(customStatusProgressBar, 1)
-    return customStatusProgressBar
+  @staticmethod
+  def hideAllLabels():
+    lm = slicer.app.layoutManager()
+    for n in range(lm.mrmlSliceLogics().GetNumberOfItems()):
+      widget = lm.sliceWidget(lm.mrmlSliceLogics().GetItemAsObject(n).GetName())
+      compositeNode = widget.mrmlSliceCompositeNode()
+      compositeNode.SetLabelOpacity(0)
+
+  @staticmethod
+  def setFiducialNodeVisibility(targetNode, show=True):
+    markupsLogic = slicer.modules.markups.logic()
+    markupsLogic.SetAllMarkupsVisibility(targetNode, show)
+
+  @staticmethod
+  def hideAllFiducialNodes():
+    for targetNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+      ModuleWidgetMixin.setFiducialNodeVisibility(targetNode, show=False)
 
   @staticmethod
   def setFOV(sliceLogic, FOV):
@@ -144,6 +208,12 @@ class ModuleWidgetMixin(GeneralModuleMixin):
     if node:
       slicer.mrmlScene.RemoveNode(node)
       node = None
+
+  @staticmethod
+  def xyToRAS(sliceLogic, xyPoint):
+    sliceNode = sliceLogic.GetSliceNode()
+    rast = sliceNode.GetXYToRAS().MultiplyPoint(xyPoint + (0,1,))
+    return rast[:3]
 
   @staticmethod
   def refreshViewNodeIDs(node, sliceNodes):
@@ -320,6 +390,22 @@ class ModuleWidgetMixin(GeneralModuleMixin):
 
 class ModuleLogicMixin(GeneralModuleMixin):
 
+  @property
+  def scalarVolumePlugin(self):
+    return slicer.modules.dicomPlugins['DICOMScalarVolumePlugin']()
+
+  @property
+  def volumesLogic(self):
+    return slicer.modules.volumes.logic()
+
+  @property
+  def markupsLogic(self):
+    return slicer.modules.markups.logic()
+
+  @property
+  def cropVolumeLogic(self):
+    return slicer.modules.cropvolume.logic()
+
   @staticmethod
   def cloneFiducials(original, cloneName, keepDisplayNode=False):
     clone = slicer.vtkMRMLMarkupsFiducialNode()
@@ -349,14 +435,6 @@ class ModuleLogicMixin(GeneralModuleMixin):
         mostRecent = filename
         storedTimeStamp = timeStamp
     return mostRecent
-
-  @staticmethod
-  def createTimer(interval, slot, singleShot=False):
-    timer = qt.QTimer()
-    timer.setInterval(interval)
-    timer.timeout.connect(slot)
-    timer.setSingleShot(singleShot)
-    return timer
 
   @staticmethod
   def getTargetPosition(targetNode, index):
@@ -425,6 +503,82 @@ class ModuleLogicMixin(GeneralModuleMixin):
         RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[2], RAScoord[1], RAScoord[0], 1))
         centroid = [RASDir[0], -RASDir[2], -RASDir[1]]
     return centroid
+
+  @staticmethod
+  def roundInt(value, exceptionReturnValue=0):
+    try:
+      return int(round(value))
+    except ValueError:
+      return exceptionReturnValue
+
+  @staticmethod
+  def getIJKForXYZ(sliceWidget, p):
+    xyz = sliceWidget.sliceView().convertRASToXYZ(p)
+    layerLogic = sliceWidget.sliceLogic().GetBackgroundLayer()
+    xyToIJK = layerLogic.GetXYToIJKTransform()
+    ijkFloat = xyToIJK.TransformDoublePoint(xyz)
+    ijk = [ModuleLogicMixin.roundInt(value) for value in ijkFloat]
+    return ijk
+
+  @staticmethod
+  def createCroppedVolume(inputVolume, roi):
+    cropVolumeLogic = slicer.modules.cropvolume.logic()
+    cropVolumeParameterNode = slicer.vtkMRMLCropVolumeParametersNode()
+    cropVolumeParameterNode.SetROINodeID(roi.GetID())
+    cropVolumeParameterNode.SetInputVolumeNodeID(inputVolume.GetID())
+    cropVolumeParameterNode.SetVoxelBased(True)
+    cropVolumeLogic.Apply(cropVolumeParameterNode)
+    croppedVolume = slicer.mrmlScene.GetNodeByID(cropVolumeParameterNode.GetOutputVolumeNodeID())
+    return croppedVolume
+
+  @staticmethod
+  def createMaskedVolume(inputVolume, labelVolume, outputVolumeName=None):
+    maskedVolume = slicer.vtkMRMLScalarVolumeNode()
+    if outputVolumeName:
+      maskedVolume.SetName(outputVolumeName)
+    slicer.mrmlScene.AddNode(maskedVolume)
+    params = {'InputVolume': inputVolume, 'MaskVolume': labelVolume, 'OutputVolume': maskedVolume}
+    slicer.cli.run(slicer.modules.maskscalarvolume, None, params, wait_for_completion=True)
+    return maskedVolume
+
+  @staticmethod
+  def createVTKTubeFilter(startPoint, endPoint, radius, numSides):
+    lineSource = vtk.vtkLineSource()
+    lineSource.SetPoint1(startPoint)
+    lineSource.SetPoint2(endPoint)
+
+    tubeFilter = vtk.vtkTubeFilter()
+    tubeFilter.SetInputConnection(lineSource.GetOutputPort())
+    tubeFilter.SetRadius(radius)
+    tubeFilter.SetNumberOfSides(numSides)
+    tubeFilter.CappingOn()
+    tubeFilter.Update()
+    return tubeFilter
+
+  @staticmethod
+  def createLabelMapFromCroppedVolume(volume, name, lowerThreshold=0, upperThreshold=2000, labelValue=1):
+    volumesLogic = slicer.modules.volumes.logic()
+    labelVolume = volumesLogic.CreateAndAddLabelVolume(volume, name)
+    imageData = labelVolume.GetImageData()
+    imageThreshold = vtk.vtkImageThreshold()
+    imageThreshold.SetInputData(imageData)
+    imageThreshold.ThresholdBetween(lowerThreshold, upperThreshold)
+    imageThreshold.SetInValue(labelValue)
+    imageThreshold.Update()
+    labelVolume.SetAndObserveImageData(imageThreshold.GetOutput())
+    return labelVolume
+
+  @staticmethod
+  def getIslandCount(image, index):
+    imageSize = image.GetSize()
+    index = [0, 0, index]
+    extractor = sitk.ExtractImageFilter()
+    extractor.SetSize([imageSize[0], imageSize[1], 0])
+    extractor.SetIndex(index)
+    slice = extractor.Execute(image)
+    cc = sitk.ConnectedComponentImageFilter()
+    cc.Execute(slice)
+    return cc.GetObjectCount()
 
   @staticmethod
   def applyOtsuFilter(volume):
@@ -528,7 +682,7 @@ class ModuleLogicMixin(GeneralModuleMixin):
     return node
 
   @staticmethod
-  def saveNodeData(node, outputDir, extension, replaceUnwantedCharacters=True, name=None, overwrite=False):
+  def saveNodeData(node, outputDir, extension, replaceUnwantedCharacters=True, name=None, overwrite=True):
     name = name if name else node.GetName()
     if replaceUnwantedCharacters:
       name = ModuleLogicMixin.replaceUnwantedCharacters(name)
@@ -564,6 +718,18 @@ class ModuleLogicMixin(GeneralModuleMixin):
     return displayNode
 
   @staticmethod
+  def setNodeVisibility(node, visible):
+    displayNode = node.GetDisplayNode()
+    if displayNode is not None:
+      displayNode.SetVisibility(visible)
+
+  @staticmethod
+  def setNodeSliceIntersectionVisibility(node, visible):
+    displayNode = node.GetDisplayNode()
+    if displayNode is not None:
+      displayNode.SetSliceIntersectionVisibility(visible)
+
+  @staticmethod
   def isVolumeExtentValid(volume):
     imageData = volume.GetImageData()
     try:
@@ -571,3 +737,17 @@ class ModuleLogicMixin(GeneralModuleMixin):
       return extent[1] > 0 and extent[3] > 0 and extent[5] > 0
     except AttributeError:
       return False
+
+  @staticmethod
+  def isAnyListItemInString(string, listItem):
+    return any(item in string for item in listItem)
+
+  @staticmethod
+  def smoothSegmentation(label, labelNumber=None):
+    params = {
+      'inputImageName': label.GetID(),
+      'outputImageName': label.GetID()
+    }
+    if labelNumber:
+      params['labelNumber'] = labelNumber
+    slicer.cli.run(slicer.modules.segmentationsmoothing, None, params, wait_for_completion=True)

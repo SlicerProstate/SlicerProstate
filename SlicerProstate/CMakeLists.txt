@@ -9,6 +9,7 @@ set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}Utils/helpers.py
   ${MODULE_NAME}Utils/constants.py
   ${MODULE_NAME}Utils/decorators.py
+  ${MODULE_NAME}Utils/metaclasses.py
   ${MODULE_NAME}Utils/signal.py
   ${MODULE_NAME}Utils/events.py
   ${MODULE_NAME}Utils/widgets.py
@@ -16,6 +17,9 @@ set(MODULE_PYTHON_SCRIPTS
   )
 
 set(MODULE_PYTHON_RESOURCES
+  Resources/Icons/icon-addFiducial.png
+  Resources/Icons/icon-modifyFiducial.png
+  Resources/Icons/icon-apply.png
   Resources/Icons/cursor-window-level.png
   Resources/Icons/icon-settings.png
   Resources/Icons/icon-star-filled.png
