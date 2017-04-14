@@ -505,6 +505,82 @@ class ModuleLogicMixin(GeneralModuleMixin):
     return centroid
 
   @staticmethod
+  def roundInt(value, exceptionReturnValue=0):
+    try:
+      return int(round(value))
+    except ValueError:
+      return exceptionReturnValue
+
+  @staticmethod
+  def getIJKForXYZ(sliceWidget, p):
+    xyz = sliceWidget.sliceView().convertRASToXYZ(p)
+    layerLogic = sliceWidget.sliceLogic().GetBackgroundLayer()
+    xyToIJK = layerLogic.GetXYToIJKTransform()
+    ijkFloat = xyToIJK.TransformDoublePoint(xyz)
+    ijk = [ModuleLogicMixin.roundInt(value) for value in ijkFloat]
+    return ijk
+
+  @staticmethod
+  def createCroppedVolume(inputVolume, roi):
+    cropVolumeLogic = slicer.modules.cropvolume.logic()
+    cropVolumeParameterNode = slicer.vtkMRMLCropVolumeParametersNode()
+    cropVolumeParameterNode.SetROINodeID(roi.GetID())
+    cropVolumeParameterNode.SetInputVolumeNodeID(inputVolume.GetID())
+    cropVolumeParameterNode.SetVoxelBased(True)
+    cropVolumeLogic.Apply(cropVolumeParameterNode)
+    croppedVolume = slicer.mrmlScene.GetNodeByID(cropVolumeParameterNode.GetOutputVolumeNodeID())
+    return croppedVolume
+
+  @staticmethod
+  def createMaskedVolume(inputVolume, labelVolume, outputVolumeName=None):
+    maskedVolume = slicer.vtkMRMLScalarVolumeNode()
+    if outputVolumeName:
+      maskedVolume.SetName(outputVolumeName)
+    slicer.mrmlScene.AddNode(maskedVolume)
+    params = {'InputVolume': inputVolume, 'MaskVolume': labelVolume, 'OutputVolume': maskedVolume}
+    slicer.cli.run(slicer.modules.maskscalarvolume, None, params, wait_for_completion=True)
+    return maskedVolume
+
+  @staticmethod
+  def createVTKTubeFilter(startPoint, endPoint, radius, numSides):
+    lineSource = vtk.vtkLineSource()
+    lineSource.SetPoint1(startPoint)
+    lineSource.SetPoint2(endPoint)
+
+    tubeFilter = vtk.vtkTubeFilter()
+    tubeFilter.SetInputConnection(lineSource.GetOutputPort())
+    tubeFilter.SetRadius(radius)
+    tubeFilter.SetNumberOfSides(numSides)
+    tubeFilter.CappingOn()
+    tubeFilter.Update()
+    return tubeFilter
+
+  @staticmethod
+  def createLabelMapFromCroppedVolume(volume, name, lowerThreshold=0, upperThreshold=2000, labelValue=1):
+    volumesLogic = slicer.modules.volumes.logic()
+    labelVolume = volumesLogic.CreateAndAddLabelVolume(volume, name)
+    imageData = labelVolume.GetImageData()
+    imageThreshold = vtk.vtkImageThreshold()
+    imageThreshold.SetInputData(imageData)
+    imageThreshold.ThresholdBetween(lowerThreshold, upperThreshold)
+    imageThreshold.SetInValue(labelValue)
+    imageThreshold.Update()
+    labelVolume.SetAndObserveImageData(imageThreshold.GetOutput())
+    return labelVolume
+
+  @staticmethod
+  def getIslandCount(image, index):
+    imageSize = image.GetSize()
+    index = [0, 0, index]
+    extractor = sitk.ExtractImageFilter()
+    extractor.SetSize([imageSize[0], imageSize[1], 0])
+    extractor.SetIndex(index)
+    slice = extractor.Execute(image)
+    cc = sitk.ConnectedComponentImageFilter()
+    cc.Execute(slice)
+    return cc.GetObjectCount()
+
+  @staticmethod
   def applyOtsuFilter(volume):
     outputVolume = slicer.vtkMRMLScalarVolumeNode()
     outputVolume.SetName('ZFrame_Otsu_Output')
@@ -640,6 +716,18 @@ class ModuleLogicMixin(GeneralModuleMixin):
     slicer.mrmlScene.AddNode(displayNode)
     node.SetAndObserveDisplayNodeID(displayNode.GetID())
     return displayNode
+
+  @staticmethod
+  def setNodeVisibility(node, visible):
+    displayNode = node.GetDisplayNode()
+    if displayNode is not None:
+      displayNode.SetVisibility(visible)
+
+  @staticmethod
+  def setNodeSliceIntersectionVisibility(node, visible):
+    displayNode = node.GetDisplayNode()
+    if displayNode is not None:
+      displayNode.SetSliceIntersectionVisibility(visible)
 
   @staticmethod
   def isVolumeExtentValid(volume):
