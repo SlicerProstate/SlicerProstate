@@ -26,6 +26,5 @@ add_subdirectory(SlicerProstate)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------
-if(NOT Slicer_SOURCE_DIR)
-  include(${Slicer_EXTENSION_CPACK})
-endif()
+include(${Slicer_EXTENSION_GENERATE_CONFIG})
+include(${Slicer_EXTENSION_CPACK})
