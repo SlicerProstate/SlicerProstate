@@ -533,7 +533,7 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     logging.info('Cropped image done: '+str(croppedImage))
 
     croppedLabelName = labelNode.GetName()+'-Cropped'
-    sitkUtils.PushToSlicer(croppedImage,croppedLabelName,overwrite=True)
+    sitkUtils.PushVolumeToSlicer(croppedImage,name=croppedLabelName)
     logging.info('Cropped volume pushed')
 
     croppedLabel = slicer.util.getNode(croppedLabelName)
@@ -541,7 +541,9 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     logging.info('Smoothed image done')
 
     smoothLabelName = labelNode.GetName()+'-Smoothed'
-    smoothLabel = self.createVolumeNode(smoothLabelName)
+    smoothLabel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+    smoothLabel.SetName(smoothLabelName)
+    smoothLabel.CreateDefaultStorageNode()
 
     # smooth the labels
     smoothingParameters = {'inputImageName':croppedLabel.GetID(), 'outputImageName':smoothLabel.GetID()}
@@ -563,17 +565,10 @@ class DistanceMapBasedRegistrationLogic(ScriptedLoadableModuleLogic):
     smoothLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(smoothLabel.GetName())    
     smoothLabelImage = sitk.ReadImage(smoothLabelAddress)
     distanceImage = dt.Execute(smoothLabelImage)
-    sitkUtils.PushToSlicer(distanceImage, distanceMapName, overwrite=True)
+    sitkUtils.PushVolumeToSlicer(distanceImage, name=distanceMapName)
 
     return slicer.util.getNode(distanceMapName)
 
-  def createVolumeNode(self,name):
-    import sitkUtils
-    node = sitkUtils.CreateNewVolumeNode(name,overwrite=True)
-    storageNode = slicer.vtkMRMLNRRDStorageNode()
-    slicer.mrmlScene.AddNode(storageNode)
-    node.SetAndObserveStorageNodeID(storageNode.GetID())
-    return node
 
 class DistanceMapBasedRegistrationTest(ScriptedLoadableModuleTest):
   """
