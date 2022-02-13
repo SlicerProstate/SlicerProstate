@@ -45,13 +45,14 @@ The following individuals and groups contributed directly to the development of 
 
 ## References
 
-If you use SlicerProstate in your work, you can acknowledge it by referencing
-the following publications. You can also use those to learn more about
-SlicerProstate functionality.
+If you use SlicerProstate in your work, we would be grateful if you could acknowledge it by citing
+the following publication. You can also use it to learn more about SlicerProstate functionality!
 
-1. Fedorov A, Khallaghi S, Antonio Sánchez C, Lasso A, Fels S, Tuncali K, Neubauer Sugar E, Kapur T, Zhang C, Wells W, Nguyen PL, Abolmaesumi P, Tempany C. (2015) Open-source image registration for MRI–TRUS fusion-guided prostate
-interventions. Int J CARS: 1–10. Available: http://link.springer.com/article/10.1007/s11548-015-1180-7. (see preprint PDF of the article [here](http://www.spl.harvard.edu/publications/item/view/2776))
-2. Fedorov A, Nguyen PL, Tuncali K, Tempany C. (2015). Annotated MRI and ultrasound volume images of the prostate. Zenodo. http://doi.org/10.5281/zenodo.16396
+> Fedorov, A., Khallaghi, S., Sánchez, C. A., Lasso, A., Fels, S., Tuncali, K., Sugar, E. N., Kapur, T., Zhang, C., Wells, W., Nguyen, P. L., Abolmaesumi, P. & Tempany, C. Open-source image registration for MRI-TRUS fusion-guided prostate interventions. Int. J. Comput. Assist. Radiol. Surg. 10, 925–934 (2015). Available: https://pubmed.ncbi.nlm.nih.gov/25847666/
+
+A sample dataset you can use for testing is available here. If you use this dataset, please cite it!
+
+> Fedorov A, Nguyen PL, Tuncali K, Tempany C. (2015). Annotated MRI and ultrasound volume images of the prostate. Zenodo. http://doi.org/10.5281/zenodo.16396
 
 ## Contact
 
