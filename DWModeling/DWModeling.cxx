@@ -71,7 +71,7 @@ std::vector<float> GetBvalues(itk::MetaDataDictionary& dictionary)
       }
     else
       {
-      itkGenericExceptionMacro("Missing attribute 'MultiVolume.FrameLabels'.")
+      itkGenericExceptionMacro("Missing attribute 'MultiVolume.FrameLabels'.");
       }
     }
   else
