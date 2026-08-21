@@ -2,6 +2,7 @@
 #include "itkImageDuplicator.h"
 #include "itkMetaDataObject.h"
 #include "itkLevenbergMarquardtOptimizer.h"
+#include <vnl/algo/vnl_levenberg_marquardt.h>
 #include "itkArray.h"
 
 
