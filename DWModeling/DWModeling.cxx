@@ -2,6 +2,7 @@
 #include "itkImageDuplicator.h"
 #include "itkMetaDataObject.h"
 #include "itkLevenbergMarquardtOptimizer.h"
+#include <vnl/algo/vnl_levenberg_marquardt.h>
 #include "itkArray.h"
 
 
@@ -753,7 +754,6 @@ int main( int argc, char * argv[])
   for(vvIt.GoToBegin();!vvIt.IsAtEnd();++vvIt){
     //if(cnt>10)
     //  break;
-    VectorVolumeType::IndexType index = vvIt.GetIndex();
     VectorVolumeType::PixelType vectorVoxel = vvIt.Get();
     VectorVolumeType::PixelType fittedVoxel(vectorVoxel.GetSize());
     for(int i=0;i<fittedVoxel.GetSize();i++)
